@@ -1,5 +1,5 @@
 mod bwt;
 
 fn main() {
-    println!("Hello, world!");
+    bwt::bwt(String::from("americanfootball").into_bytes());
 }
