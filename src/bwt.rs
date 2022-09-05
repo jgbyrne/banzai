@@ -80,20 +80,22 @@ impl<'d, W: Word + 'd> Buckets<W> {
         }
     }
 
-    fn layout<I>(&mut self, data: I) where
-        I: Iterator<Item = &'d W>
+    fn layout<I>(&mut self, data: I)
+    where
+        I: Iterator<Item = &'d W>,
     {
         for c in data {
             self.sizes[c.as_usize()] += 1;
             if self.sizes[c.as_usize()] == 1 {
-                self.sigma.push(*c) 
+                self.sigma.push(*c)
             }
         }
         self.sigma.sort_unstable();
     }
 
-    fn build<I>(data: I, max_sigma_size: usize) -> Self where
-        I: Iterator<Item = &'d W>
+    fn build<I>(data: I, max_sigma_size: usize) -> Self
+    where
+        I: Iterator<Item = &'d W>,
     {
         let mut buckets = Self {
             sigma: Vec::with_capacity(max_sigma_size),
@@ -106,12 +108,16 @@ impl<'d, W: Word + 'd> Buckets<W> {
         buckets
     }
 
-    fn rebuild<I>(&mut self, data: I, max_sigma_size: usize) where
-        I: Iterator<Item = &'d W>
+    fn rebuild<I>(&mut self, data: I, max_sigma_size: usize)
+    where
+        I: Iterator<Item = &'d W>,
     {
-        self.sigma.clear(); self.sigma.reserve(max_sigma_size);
-        self.sizes.clear(); self.sizes.resize(max_sigma_size, 0);
-        self.bptrs.clear(); self.sizes.resize(max_sigma_size, 0);
+        self.sigma.clear();
+        self.sigma.reserve(max_sigma_size);
+        self.sizes.clear();
+        self.sizes.resize(max_sigma_size, 0);
+        self.bptrs.clear();
+        self.sizes.resize(max_sigma_size, 0);
 
         self.layout(data);
         assert!(self.sigma[self.sigma.len() - 1].as_usize() < max_sigma_size)
@@ -122,7 +128,9 @@ impl<'d, W: Word + 'd> Buckets<W> {
 fn tail_push<W: Word>(sa: &mut Array, buckets: &mut Buckets<W>, w: W, i: Idx) {
     let bptr = &mut buckets.bptrs[w.as_usize()];
     sa[*bptr] = i;
-    if *bptr > 0 { *bptr -= 1 };
+    if *bptr > 0 {
+        *bptr -= 1
+    };
 }
 
 #[inline]
@@ -140,24 +148,24 @@ enum Type {
 pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
     let n: usize = data.len();
 
-    // Establish invariant: 1 < n 
+    // Establish invariant: 1 < n
     match n {
         0 => return (vec![], -1),
         1 => return (data, 0),
         _ => (),
     }
 
-    // Establish invariant: n < Idx::MAX / 2
+    // Establish invariant: n < Idx::MAX / 4
     // :: bzip2 block size will never exceed this
-    if n >= ((Idx::MAX / 2) as usize) - 1 {
-        return (vec![], -1)
+    if n >= ((Idx::MAX / 4) as usize) - 1 {
+        return (vec![], -1);
     }
 
-    // To implement wrap-around suffix sorting, we must 
+    // To implement wrap-around suffix sorting, we must
     // perform SA-IS on concat(data, data)
     // let buf_n = n * 2;
     // data.append(&mut data.clone());
-    
+
     let buf_n = n;
 
     let data = Data(data);
@@ -167,10 +175,12 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
 
     // =-=-= SA-IS Step 1: Induced Sort all LMS-Substrings in O(n) =-=-=
 
+    let mut lms_count = 0;
+
     //  Insert LMS-Substrings into respective S-Buckets
 
     buckets.set_ptrs_to_bucket_tails();
-    let mut rtl  = data.iter().rev();
+    let mut rtl = data.iter().rev();
 
     let mut i_sub = buf_n as Idx;
     let mut ty_sub = Type::L; // phantom sentinel
@@ -179,75 +189,189 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
         i_sub -= 1;
         match ty_sub {
             Type::L => {
-                if w < w_sub { ty_sub = Type::S; }
+                if w < w_sub {
+                    ty_sub = Type::S;
+                }
             },
             Type::S => {
                 if w > w_sub {
                     tail_push(&mut sa, &mut buckets, *w_sub, i_sub);
+                    lms_count += 1;
                     ty_sub = Type::L;
                 }
-            }
+            },
         }
         w_sub = w;
     }
 
-    // Induce L-type LMS-Prefixes from unsorted LMS-Suffixes
+    let recurse = if lms_count != 0 {
+        // Induce L-type LMS-Prefixes from unsorted LMS-Suffixes
 
-    buckets.set_ptrs_to_bucket_heads();
+        buckets.set_ptrs_to_bucket_heads();
 
-    let mut i = (buf_n as Idx); // phantom sentinel
-    let mut i_sup = i - 1;
-    let mut i_sup2 = i - 2;
-    
-    let push_idx = if data[i_sup2] < data[i_sup] { !i_sup } else { i_sup };
-    head_push(&mut sa, &mut buckets, data[i_sup], push_idx);
+        let mut i = buf_n as Idx; // phantom sentinel
+        let mut i_sup = i - 1;
+        let mut i_sup2 = i - 2;
 
-    for p in 0..buf_n {
-        i = sa[p];
-        if i > 0 {
-            i_sup = i - 1;
-            i_sup2 = i - 2;
-            assert!(data[i_sup] >= data[i]);
-            let push_idx = if i_sup2 < 0 || data[i_sup2] < data[i_sup] { !i_sup } else { i_sup };
-            head_push(&mut sa, &mut buckets, data[i_sup], push_idx);
-            sa[p] = 0;
+        let push_idx = if data[i_sup2] < data[i_sup] {
+            !i_sup
+        } else {
+            i_sup
+        };
+        head_push(&mut sa, &mut buckets, data[i_sup], push_idx);
+
+        for p in 0..buf_n {
+            i = sa[p];
+            if i > 0 {
+                i_sup = i - 1;
+                i_sup2 = i - 2;
+                assert!(data[i_sup] >= data[i]);
+                let push_idx = if i_sup2 < 0 || data[i_sup2] < data[i_sup] {
+                    !i_sup
+                } else {
+                    i_sup
+                };
+                head_push(&mut sa, &mut buckets, data[i_sup], push_idx);
+                sa[p] = 0;
+            } else if i < 0 {
+                sa[p] = !sa[p];
+            }
         }
-        else if i < 0 {
-            sa[p] = !sa[p];
+
+        // Induce S-type LMS-Prefixes from L-type LMS-Prefixes
+        // :: LMS-Suffixes are a subset of S-type LMS-Prefixes
+        // :: +tives are LMLs
+
+        buckets.set_ptrs_to_bucket_tails();
+
+        let mut i = buf_n as Idx;
+        let mut i_sup = i - 1;
+        let mut i_sup2 = i - 2;
+
+        for p in (0..buf_n).rev() {
+            i = sa[p];
+            if i > 0 {
+                i_sup = i - 1;
+                i_sup2 = i - 2;
+                assert!(data[i_sup] <= data[i]);
+                let push_idx = if i_sup2 < 0 || data[i_sup2] > data[i_sup] {
+                    !i_sup
+                } else {
+                    i_sup
+                };
+                tail_push(&mut sa, &mut buckets, data[i_sup], push_idx);
+                sa[p] = 0;
+            }
         }
-    }
 
-    // Induce S-type LMS-Prefixes from L-type LMS-Prefixes 
-    // :: LMS-Suffixes are a subset of S-type LMS-Prefixes
-    // :: +tives are LMLs
+        // Compress sorted LMS-Suffixes into sa[0..lms_count]
 
-    buckets.set_ptrs_to_bucket_tails();
-
-    let mut i = buf_n as Idx;
-    let mut i_sup = i - 1;
-    let mut i_sup2 = i - 2;
-
-    for p in (0..buf_n).rev() {
-        i = sa[p];
-        if i > 0 {
-            i_sup = i - 1;
-            i_sup2 = i - 2;
-            assert!(data[i_sup] <= data[i]);
-            let push_idx = if i_sup2 < 0 || data[i_sup2] > data[i_sup] { !i_sup } else { i_sup };
-            tail_push(&mut sa, &mut buckets, data[i_sup], push_idx);
-            sa[p] = 0;
+        let mut lms_count = 0;
+        for p in 0..buf_n {
+            if sa[p] < -1 {
+                // We don't want to treat 0 as LMS: -1 = !0
+                sa[lms_count] = !sa[p];
+                lms_count += 1;
+            }
+            if p >= lms_count {
+                sa[p] = Idx::MAX;
+            }
         }
-    }
 
-    // Compress sorted LMS-Suffixes into sa[0..lms_count]
+        // Write substring lengths into latter part of sa
+        let mut rtl = data.iter().rev();
 
-    let mut lms_count = 0;
-    for p in 0..buf_n {
-        if sa[p] < -1 { // We don't want to treat 0 as LMS: -1 = !0
-            sa[lms_count] = !sa[p];
-            if p != lms_count { sa[p] = 0 }
-            lms_count += 1;
+        let mut i_sub = buf_n as Idx;
+        let mut ty_sub = Type::L; // phantom sentinel
+        let mut w_sub = rtl.next().unwrap();
+
+        let mut unseen_lms = lms_count;
+        let mut last_lms: Idx = i_sub - 1;
+
+        for w in rtl {
+            i_sub -= 1;
+            match ty_sub {
+                Type::L => {
+                    if w < w_sub {
+                        ty_sub = Type::S;
+                    }
+                },
+                Type::S => {
+                    if w > w_sub {
+                        sa[lms_count + (i_sub >> 1) as usize] = (1 + last_lms as Idx) - i_sub;
+
+                        last_lms = i_sub;
+                        unseen_lms -= 1;
+                        if unseen_lms == 0 {
+                            break;
+                        }
+
+                        ty_sub = Type::L;
+                    }
+                },
+            }
+            w_sub = w;
         }
+
+        // Write reduced problem string sparsely into sa[lms_count..]
+
+        let mut rword = 0;
+        let mut prv_lms = 0;
+        let mut prv_lms_len: usize = 0;
+        for i in 0..lms_count {
+            let cur_lms = sa[i];
+            let cur_lms_len: usize = sa[lms_count + (cur_lms >> 1) as usize] as usize;
+
+            if prv_lms != 0 {
+                let eq = if (prv_lms_len == cur_lms_len) && (prv_lms_len + cur_lms_len < n) {
+                    let mut offset = 0;
+                    loop {
+                        if offset as usize == prv_lms_len {
+                            break true;
+                        };
+                        if data[prv_lms + offset] != data[cur_lms + offset] {
+                            break false;
+                        }
+                        offset += 1;
+                    }
+                } else {
+                    false
+                };
+
+                if !eq {
+                    rword += 1;
+                    prv_lms = cur_lms;
+                    prv_lms_len = cur_lms_len;
+                }
+            } else {
+                prv_lms = cur_lms;
+                prv_lms_len = cur_lms_len;
+            };
+            sa[lms_count + (cur_lms >> 1) as usize] = rword;
+        }
+
+        // Compress reduced problem string into end of sa
+
+        let mut write_ptr = buf_n - 1;
+        for p in (lms_count..buf_n).rev() {
+            if sa[p] != Idx::MAX {
+                sa[write_ptr] = sa[p];
+                write_ptr -= 1;
+            }
+        }
+
+        let new_sigma_size = rword as usize + 1;
+        if lms_count != new_sigma_size {
+            Some(new_sigma_size)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if let Some(new_sigma_size) = recurse {
+        unimplemented!();
     }
 
     unimplemented!();
