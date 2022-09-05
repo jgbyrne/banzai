@@ -146,6 +146,10 @@ enum Type {
 }
 
 pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
+    if usize::BITS < 32 {
+        panic!("This library does not support usize < 32");
+    }
+
     let n: usize = data.len();
 
     // Establish invariant: 1 < n
@@ -204,12 +208,12 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
         w_sub = w;
     }
 
-    let recurse = if lms_count != 0 {
+    if lms_count > 1 {
         // Induce L-type LMS-Prefixes from unsorted LMS-Suffixes
 
         buckets.set_ptrs_to_bucket_heads();
 
-        let mut i = buf_n as Idx; // phantom sentinel
+        let mut i = buf_n as Idx;
         let mut i_sup = i - 1;
         let mut i_sup2 = i - 2;
 
@@ -244,9 +248,9 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
 
         buckets.set_ptrs_to_bucket_tails();
 
-        let mut i = buf_n as Idx;
-        let mut i_sup = i - 1;
-        let mut i_sup2 = i - 2;
+        let mut i;
+        let mut i_sup;
+        let mut i_sup2;
 
         for p in (0..buf_n).rev() {
             i = sa[p];
@@ -360,19 +364,130 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
             }
         }
 
-        let new_sigma_size = rword as usize + 1;
-        if lms_count != new_sigma_size {
-            Some(new_sigma_size)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+        // =-=-= SA-IS Step 2: Solve Suffix Array for Reduced Problem =-=-=
 
-    if let Some(new_sigma_size) = recurse {
-        unimplemented!();
+        let new_sigma_size = rword as usize + 1;
+        if new_sigma_size != lms_count {
+            unimplemented!();
+        } else {
+            // bijection between rwords and valleys
+            for p in 0..lms_count {
+                let w_rank = sa[buf_n - lms_count + p] as usize;
+                sa[w_rank] = p as Idx;
+            }
+        }
+
+        // Overwrite reduced string with indices into original string
+
+        let mut rtl = data.iter().rev();
+
+        let mut write_ptr = buf_n - 1;
+
+        let mut i_sub = buf_n as Idx;
+        let mut ty_sub = Type::L; // phantom sentinel
+        let mut w_sub = rtl.next().unwrap();
+        for w in rtl {
+            i_sub -= 1;
+            match ty_sub {
+                Type::L => {
+                    if w < w_sub {
+                        ty_sub = Type::S;
+                    }
+                },
+                Type::S => {
+                    if w > w_sub {
+                        sa[write_ptr] = i_sub;
+                        write_ptr -= 1;
+                        ty_sub = Type::L;
+                    }
+                },
+            }
+            w_sub = w;
+        }
+
+        // Overwrite reduced suffix array with the indices into the original string
+
+        for p in 0..lms_count {
+            sa[p] = sa[buf_n - lms_count + sa[p] as usize];
+        }
+
+        for p in lms_count..buf_n {
+            sa[p] = 0
+        }
+
+        // Fill buckets with relatively sorted LMS-Suffixes
+
+        buckets.set_ptrs_to_bucket_tails();
+
+        for p in (0..lms_count).rev() {
+            let lms_idx = sa[p];
+            sa[p] = 0;
+            tail_push(&mut sa, &mut buckets, data[lms_idx], lms_idx);
+        }
     }
+
+    // invariant here: LMS-Suffixes are sorted relative to each other in buckets
+
+    // =-=-= SA-IS Step 3: Use sorted LMS-Suffixes to induce full Suffix Array =-=-=
+
+    // Induce L-type LMS-suffixes from sorted LMS-Suffixes
+
+    buckets.set_ptrs_to_bucket_heads();
+
+    let mut i = buf_n as Idx;
+    let mut i_sup = i - 1;
+    let mut i_sup2 = i - 2;
+
+    let push_idx = if data[i_sup2] < data[i_sup] {
+        !i_sup
+    } else {
+        i_sup
+    };
+    head_push(&mut sa, &mut buckets, data[i_sup], push_idx);
+
+    for p in 0..buf_n {
+        i = sa[p];
+        if i > 0 {
+            i_sup = i - 1;
+            i_sup2 = i - 2;
+            assert!(data[i_sup] >= data[i]);
+            let push_idx = if i_sup2 < 0 || data[i_sup2] < data[i_sup] {
+                !i_sup
+            } else {
+                i_sup
+            };
+            head_push(&mut sa, &mut buckets, data[i_sup], push_idx);
+        }
+        sa[p] = !sa[p];
+    }
+
+    // Induce S-type LMS-Suffixes from L-type LMS-Suffixes
+    // :: +tives are LMLs
+
+    buckets.set_ptrs_to_bucket_tails();
+
+    let mut i;
+    let mut i_sup;
+    let mut i_sup2;
+
+    for p in (0..buf_n).rev() {
+        i = sa[p];
+        if i > 0 {
+            i_sup = i - 1;
+            i_sup2 = i - 2;
+            assert!(data[i_sup] <= data[i]);
+            let push_idx = if i_sup2 < 0 || data[i_sup2] > data[i_sup] {
+                !i_sup
+            } else {
+                i_sup
+            };
+            tail_push(&mut sa, &mut buckets, data[i_sup], push_idx);
+        } else if i < 0 {
+            sa[p] = !sa[p];
+        }
+    }
+
+    println!("{:?}", sa.0);
 
     unimplemented!();
 }
