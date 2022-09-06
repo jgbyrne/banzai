@@ -1,3 +1,6 @@
+// =-=-= out.rs =-=-=
+// Naive routines for writing out a bitstring
+
 use std::io;
 use std::io::Write;
 
@@ -17,7 +20,9 @@ impl<W: io::Write> OutputStream<W> {
     }
 
     pub fn close(mut self) -> io::Result<()> {
-        self.writer.write(&[self.strand])?;
+        if self.strand_bits != 0 {
+            self.writer.write(&[self.strand])?;
+        }
         self.writer.flush()?;
         io::Result::Ok(())
     }
