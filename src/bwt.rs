@@ -2,8 +2,6 @@
 // Implementation of the bzip2 variant of the Burrows-Wheeler Transform
 
 use core::ops::{Index, IndexMut};
-use core::ptr;
-use std::mem;
 use std::slice;
 
 type Idx = i32;
@@ -17,10 +15,6 @@ impl<'r, 'a: 'r> Array<'a> {
 
     fn len(&self) -> usize {
         self.0.len()
-    }
-
-    fn inner(&'a mut self) -> &'a mut [Idx] {
-        self.0
     }
 
     fn split(&'r mut self, n: usize) -> (Array<'r>, Data<'r, u32>) {
@@ -594,53 +588,17 @@ pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
             let mut rbuckets = Buckets::build(rdata.iter(), new_sigma_size);
             sais(new_sigma_size, rdata, rsa, &mut rbuckets);
         } else {
-            // bijection between rwords and valleys
+            /* there is a bijection between rwords and LMS-suffixes */
             for p in 0..lms_count {
                 let w_rank = sa[buf_n - lms_count + p] as usize;
                 sa[w_rank] = p as Idx;
             }
         }
 
-        // Overwrite reduced string with indices into original string
-
-        let mut rtl = data.iter().rev();
-
-        let mut write_ptr = buf_n - 1;
-
-        let mut i_sub = buf_n as Idx;
-        let mut ty_sub = Type::L; // phantom sentinel
-        let mut w_sub = rtl.next().unwrap();
-        for w in rtl {
-            i_sub -= 1;
-            match ty_sub {
-                Type::L => {
-                    if w < w_sub {
-                        ty_sub = Type::S;
-                    }
-                },
-                Type::S => {
-                    if w > w_sub {
-                        sa[write_ptr] = i_sub;
-                        write_ptr -= 1;
-                        ty_sub = Type::L;
-                    }
-                },
-            }
-            w_sub = w;
-        }
-
-        // Overwrite reduced suffix array with the indices into the original string
-
-        for p in 0..lms_count {
-            sa[p] = sa[buf_n - lms_count + sa[p] as usize];
-        }
-
-        for p in lms_count..buf_n {
-            sa[p] = 0;
-        }
+        // Convert reduced solution into sorted LMS-Suffixes
+        decode_reduced(&data, &mut sa, lms_count);
 
         // Fill buckets with relatively sorted LMS-Suffixes
-
         buckets.set_ptrs_to_bucket_tails();
 
         for p in (0..lms_count).rev() {
@@ -652,7 +610,7 @@ pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
 
     // invariant here: LMS-Suffixes are sorted relative to each other in buckets
 
-    // =-=-= SA-IS Step 3: Use sorted LMS-Suffixes to induce full Suffix Array =-=-=
+    // =-=-= SA-IS Step 3: Use sorted LMS-Suffixes to induce Burrows-Wheeler Transform =-=-=
 
     // Induce L-type LMS-suffixes from sorted LMS-Suffixes
 
