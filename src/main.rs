@@ -1,6 +1,8 @@
 mod bwt;
 
 fn main() {
-    //bwt::bwt(String::from("bbanana").into_bytes());
-    bwt::bwt(String::from("mississippi").into_bytes());
+    let test = "americanfootball";
+    let (bwt, start) = bwt::bwt(String::from(test).into_bytes());
+    let bwt = String::from_utf8(bwt).unwrap();
+    println!("{} {}", bwt, start);
 }

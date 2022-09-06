@@ -145,7 +145,7 @@ enum Type {
     L,
 }
 
-pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
+pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, usize) {
     if usize::BITS < 32 {
         panic!("This library does not support usize < 32");
     }
@@ -154,7 +154,7 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
 
     // Establish invariant: 1 < n
     match n {
-        0 => return (vec![], -1),
+        0 => return (vec![], usize::MAX),
         1 => return (data, 0),
         _ => (),
     }
@@ -162,15 +162,13 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
     // Establish invariant: n < Idx::MAX / 4
     // :: bzip2 block size will never exceed this
     if n >= ((Idx::MAX / 4) as usize) - 1 {
-        return (vec![], -1);
+        return (vec![], usize::MAX);
     }
 
     // To implement wrap-around suffix sorting, we must
     // perform SA-IS on concat(data, data)
-    // let buf_n = n * 2;
-    // data.append(&mut data.clone());
-
-    let buf_n = n;
+    let buf_n = n * 2;
+    data.append(&mut data.clone());
 
     let data = Data(data);
     let mut sa = Array::new(buf_n);
@@ -326,8 +324,13 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
             let cur_lms = sa[i];
             let cur_lms_len: usize = sa[lms_count + (cur_lms >> 1) as usize] as usize;
 
+            println!(
+                "comparing: prv: {}[{}] cur: {}[{}]",
+                prv_lms, prv_lms_len, cur_lms, cur_lms_len
+            );
+
             if prv_lms != 0 {
-                let eq = if (prv_lms_len == cur_lms_len) && (prv_lms_len + cur_lms_len < n) {
+                let eq = if (prv_lms_len == cur_lms_len) && (prv_lms_len + cur_lms_len < buf_n) {
                     let mut offset = 0;
                     loop {
                         if offset as usize == prv_lms_len {
@@ -412,7 +415,7 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
         }
 
         for p in lms_count..buf_n {
-            sa[p] = 0
+            sa[p] = 0;
         }
 
         // Fill buckets with relatively sorted LMS-Suffixes
@@ -451,14 +454,20 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
             i_sup = i - 1;
             i_sup2 = i - 2;
             assert!(data[i_sup] >= data[i]);
+            if (i as usize) < n {
+                sa[p] = !(data[i_sup] as Idx)
+            } else {
+                sa[p] = !256
+            };
             let push_idx = if i_sup2 < 0 || data[i_sup2] < data[i_sup] {
                 !i_sup
             } else {
                 i_sup
             };
             head_push(&mut sa, &mut buckets, data[i_sup], push_idx);
+        } else if i < 0 {
+            sa[p] = !sa[p];
         }
-        sa[p] = !sa[p];
     }
 
     // Induce S-type LMS-Suffixes from L-type LMS-Suffixes
@@ -470,24 +479,55 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, Idx) {
     let mut i_sup;
     let mut i_sup2;
 
+    let mut start_ptr = usize::MAX;
+
     for p in (0..buf_n).rev() {
         i = sa[p];
         if i > 0 {
             i_sup = i - 1;
             i_sup2 = i - 2;
             assert!(data[i_sup] <= data[i]);
-            let push_idx = if i_sup2 < 0 || data[i_sup2] > data[i_sup] {
-                !i_sup
+            sa[p] = if (i as usize) < n {
+                data[i_sup] as Idx
+            } else {
+                256
+            };
+            let push_idx = if i_sup2 < 0 {
+                0
+            } else if data[i_sup2] > data[i_sup] {
+                if (i_sup as usize) < n {
+                    !(data[i_sup] as Idx)
+                } else {
+                    !256
+                }
             } else {
                 i_sup
             };
             tail_push(&mut sa, &mut buckets, data[i_sup], push_idx);
         } else if i < 0 {
             sa[p] = !sa[p];
+        } else {
+            start_ptr = p;
         }
     }
 
-    println!("{:?}", sa.0);
+    let mut data = data.0;
 
-    unimplemented!();
+    println!("{:?}, {}", sa.0, start_ptr);
+
+    let mut j = n;
+    for p in 0..buf_n {
+        if p == start_ptr {
+            data[j] = data[n - 1];
+            j += 1;
+        } else {
+            let w = sa[p];
+            if w < 256 {
+                data[j] = w as u8;
+                j += 1;
+            }
+        }
+    }
+
+    (data.split_off(n), start_ptr)
 }
