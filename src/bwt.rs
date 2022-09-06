@@ -2,19 +2,24 @@
 // Implementation of the bzip2 variant of the Burrows-Wheeler Transform
 
 use core::ops::{Index, IndexMut};
+use core::ptr;
 use std::slice;
 
 type Idx = i32;
 
-struct Array(Vec<i32>);
+struct Array(Box<[i32]>);
 
 impl Array {
     fn new(n: usize) -> Self {
-        Self(vec![0; n])
+        Self(vec![0; n].into_boxed_slice())
     }
 
     fn len(&self) -> usize {
         self.0.len()
+    }
+    
+    fn inner<'a>(&'a mut self) -> &'a mut Box<[i32]> {
+        &mut self.0
     }
 }
 
@@ -206,6 +211,8 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, usize) {
         w_sub = w;
     }
 
+    assert!(lms_count < (buf_n >> 1));
+
     if lms_count > 1 {
         // Induce L-type LMS-Prefixes from unsorted LMS-Suffixes
 
@@ -371,7 +378,14 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, usize) {
 
         let new_sigma_size = rword as usize + 1;
         if new_sigma_size != lms_count {
-            unimplemented!();
+            let (rbuf, rdata) = sa.inner().split_at_mut(buf_n - lms_count); 
+
+            let rsa_ptr = rbuf.as_mut_ptr();
+            let rsa = ptr::slice_from_raw_parts_mut(rsa_ptr, lms_count);
+            let rsa = unsafe { Array(Box::from_raw(rsa)) };
+
+            let rdata = rdata.to_vec();
+
         } else {
             // bijection between rwords and valleys
             for p in 0..lms_count {
