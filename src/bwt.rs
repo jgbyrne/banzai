@@ -4,33 +4,43 @@
 use core::ops::{Index, IndexMut};
 use core::ptr;
 use std::slice;
+use std::mem;
 
 type Idx = i32;
 
-struct Array(Box<[i32]>);
+struct Array<'a>(&'a mut [Idx]);
 
-impl Array {
-    fn new(n: usize) -> Self {
-        Self(vec![0; n].into_boxed_slice())
+impl<'r, 'a: 'r> Array<'a> {
+    fn init(inner: &'a mut [Idx]) -> Self {
+        Self(inner)
     }
 
     fn len(&self) -> usize {
         self.0.len()
     }
     
-    fn inner<'a>(&'a mut self) -> &'a mut Box<[i32]> {
-        &mut self.0
+    fn inner(&'a mut self) -> &'a mut [Idx] {
+        self.0
+    }
+
+    fn split(&'r mut self, n: usize) -> (Array<'r>, Data<'r, u32>) {
+        let (sa, data) = self.0.split_at_mut(self.0.len() - n);
+        let data = unsafe {
+            let data_ptr = data.as_mut_ptr() as *mut u32;
+            slice::from_raw_parts_mut(data_ptr, n)
+        };
+        (Array(&mut sa[..n]), Data(data))
     }
 }
 
-impl Index<usize> for Array {
+impl<'a> Index<usize> for Array<'a> {
     type Output = i32;
     fn index(&self, idx: usize) -> &Self::Output {
         &self.0[idx]
     }
 }
 
-impl IndexMut<usize> for Array {
+impl<'a> IndexMut<usize> for Array<'a> {
     fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
         &mut self.0[idx]
     }
@@ -47,16 +57,24 @@ impl Word for u8 {
     }
 }
 
-struct Data(Vec<u8>);
+impl Word for u32 {
+    #[inline]
+    fn as_usize(&self) -> usize {
+        *self as usize
+    }
+}
 
-impl Data {
-    fn iter<'d>(&'d self) -> slice::Iter<'d, u8> {
+// Vec newtype that allows Idx indexing
+struct Data<'d, W>(&'d mut [W]);
+
+impl<'d, W> Data<'d, W> {
+    fn iter(&'d self) -> slice::Iter<'d, W> {
         self.0.iter()
     }
 }
 
-impl Index<Idx> for Data {
-    type Output = u8;
+impl<'d, W> Index<Idx> for Data<'d, W> {
+    type Output = W;
     fn index(&self, idx: Idx) -> &Self::Output {
         &self.0[idx as usize]
     }
@@ -150,17 +168,20 @@ enum Type {
     L,
 }
 
-pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, usize) {
+fn sais(data: Data<u32>, sa: Array, buckets: &mut Buckets<u32>) {
+}
+
+pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
     if usize::BITS < 32 {
         panic!("This library does not support usize < 32");
     }
 
-    let n: usize = data.len();
+    let n: usize = input.len();
 
     // Establish invariant: 1 < n
     match n {
         0 => return (vec![], usize::MAX),
-        1 => return (data, 0),
+        1 => return (input, 0),
         _ => (),
     }
 
@@ -173,10 +194,11 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, usize) {
     // To implement wrap-around suffix sorting, we must
     // perform SA-IS on concat(data, data)
     let buf_n = n * 2;
-    data.append(&mut data.clone());
+    input.append(&mut input.clone());
 
-    let data = Data(data);
-    let mut sa = Array::new(buf_n);
+    let data = Data(&mut input);
+    let mut array = vec![0; buf_n];
+    let mut sa = Array::init(&mut array);
 
     let mut buckets = Buckets::build(data.iter(), 256);
 
@@ -324,17 +346,12 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, usize) {
 
         // Write reduced problem string sparsely into sa[lms_count..]
 
-        let mut rword = 0;
+        let mut rword: u32 = 0;
         let mut prv_lms = 0;
         let mut prv_lms_len: usize = 0;
         for i in 0..lms_count {
             let cur_lms = sa[i];
             let cur_lms_len: usize = sa[lms_count + (cur_lms >> 1) as usize] as usize;
-
-            println!(
-                "comparing: prv: {}[{}] cur: {}[{}]",
-                prv_lms, prv_lms_len, cur_lms, cur_lms_len
-            );
 
             if prv_lms != 0 {
                 let eq = if (prv_lms_len == cur_lms_len) && (prv_lms_len + cur_lms_len < buf_n) {
@@ -361,7 +378,7 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, usize) {
                 prv_lms = cur_lms;
                 prv_lms_len = cur_lms_len;
             };
-            sa[lms_count + (cur_lms >> 1) as usize] = rword;
+            sa[lms_count + (cur_lms >> 1) as usize] = rword as Idx;
         }
 
         // Compress reduced problem string into end of sa
@@ -378,14 +395,9 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, usize) {
 
         let new_sigma_size = rword as usize + 1;
         if new_sigma_size != lms_count {
-            let (rbuf, rdata) = sa.inner().split_at_mut(buf_n - lms_count); 
-
-            let rsa_ptr = rbuf.as_mut_ptr();
-            let rsa = ptr::slice_from_raw_parts_mut(rsa_ptr, lms_count);
-            let rsa = unsafe { Array(Box::from_raw(rsa)) };
-
-            let rdata = rdata.to_vec();
-
+            let (rsa, rdata) = sa.split(lms_count);
+            let mut rbuckets = Buckets::build(rdata.iter(), new_sigma_size);
+            sais(rdata, rsa, &mut rbuckets);
         } else {
             // bijection between rwords and valleys
             for p in 0..lms_count {
@@ -543,5 +555,5 @@ pub fn bwt(mut data: Vec<u8>) -> (Vec<u8>, usize) {
         }
     }
 
-    (data.split_off(n), start_ptr)
+    (input.split_off(n), start_ptr)
 }
