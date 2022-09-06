@@ -3,8 +3,8 @@
 
 use core::ops::{Index, IndexMut};
 use core::ptr;
-use std::slice;
 use std::mem;
+use std::slice;
 
 type Idx = i32;
 
@@ -18,7 +18,7 @@ impl<'r, 'a: 'r> Array<'a> {
     fn len(&self) -> usize {
         self.0.len()
     }
-    
+
     fn inner(&'a mut self) -> &'a mut [Idx] {
         self.0
     }
@@ -29,6 +29,9 @@ impl<'r, 'a: 'r> Array<'a> {
             let data_ptr = data.as_mut_ptr() as *mut u32;
             slice::from_raw_parts_mut(data_ptr, n)
         };
+        for p in 0..n {
+            sa[p] = 0;
+        }
         (Array(&mut sa[..n]), Data(data))
     }
 }
@@ -70,6 +73,14 @@ struct Data<'d, W>(&'d mut [W]);
 impl<'d, W> Data<'d, W> {
     fn iter(&'d self) -> slice::Iter<'d, W> {
         self.0.iter()
+    }
+
+    fn len(&'d self) -> usize {
+        self.0.len()
+    }
+
+    fn inner(self) -> &'d mut [W] {
+        self.0
     }
 }
 
@@ -140,7 +151,7 @@ impl<'d, W: Word + 'd> Buckets<W> {
         self.sizes.clear();
         self.sizes.resize(max_sigma_size, 0);
         self.bptrs.clear();
-        self.sizes.resize(max_sigma_size, 0);
+        self.bptrs.resize(max_sigma_size, 0);
 
         self.layout(data);
         assert!(self.sigma[self.sigma.len() - 1].as_usize() < max_sigma_size)
@@ -168,7 +179,334 @@ enum Type {
     L,
 }
 
-fn sais(data: Data<u32>, sa: Array, buckets: &mut Buckets<u32>) {
+#[inline]
+fn induced_sort_fwd<W: Word>(data: &Data<W>, sa: &mut Array, buckets: &mut Buckets<W>, wipe: bool) {
+    let n = sa.len();
+    buckets.set_ptrs_to_bucket_heads();
+
+    let mut i = n as Idx;
+    let mut i_sup = i - 1;
+    let mut i_sup2 = i - 2;
+
+    /* Simulate sentinel by pushing data[n - 1] */
+    let push_idx = if data[i_sup2] < data[i_sup] {
+        !i_sup
+    } else {
+        i_sup
+    };
+    head_push(sa, buckets, data[i_sup], push_idx);
+
+    for p in 0..n {
+        i = sa[p];
+        if i > 0 {
+            i_sup = i - 1;
+            i_sup2 = i - 2;
+            assert!(data[i_sup] >= data[i]);
+            let push_idx = if i_sup2 < 0 || data[i_sup2] < data[i_sup] {
+                !i_sup
+            } else {
+                i_sup
+            };
+            head_push(sa, buckets, data[i_sup], push_idx);
+            if wipe {
+                sa[p] = 0
+            } else {
+                sa[p] = !sa[p]
+            };
+        } else if i < 0 {
+            sa[p] = !sa[p];
+        }
+    }
+}
+
+#[inline]
+fn induced_sort_bck<W: Word>(
+    data: &Data<W>,
+    sa: &mut Array,
+    buckets: &mut Buckets<W>,
+    wipe: bool,
+    unflip: bool,
+) {
+    let n: usize = data.len();
+    buckets.set_ptrs_to_bucket_tails();
+
+    let mut i;
+    let mut i_sup;
+    let mut i_sup2;
+
+    for p in (0..n).rev() {
+        i = sa[p];
+        if i > 0 {
+            i_sup = i - 1;
+            i_sup2 = i - 2;
+            assert!(data[i_sup] <= data[i]);
+            let push_idx = if i_sup2 < 0 || data[i_sup2] > data[i_sup] {
+                !i_sup
+            } else {
+                i_sup
+            };
+            tail_push(sa, buckets, data[i_sup], push_idx);
+            if wipe {
+                sa[p] = 0
+            };
+        } else if unflip && i < 0 {
+            sa[p] = !sa[p];
+        }
+    }
+}
+
+#[inline]
+fn encode_reduced<W: Word>(data: &Data<W>, sa: &mut Array) -> (usize, usize) {
+    let n: usize = data.len();
+
+    #[inline]
+    fn lookup_index(lms_count: usize, lms_idx: Idx) -> usize {
+        lms_count + (lms_idx >> 1) as usize
+    }
+
+    // Compress sorted LMS-Substrings into sa[0..lms_count]
+    let mut lms_count = 0;
+    for p in 0..n {
+        if sa[p] < !0 {
+            /* exclude zero suffix */
+            sa[lms_count] = !sa[p];
+            lms_count += 1;
+        }
+        if p >= lms_count {
+            sa[p] = Idx::MAX;
+        }
+    }
+
+    // Determine LMS-Substring lengths and write into lookup indices
+    let mut rtl = data.iter().rev();
+
+    /* phantom sentinel */
+    let mut i_sub = n as Idx;
+    let mut ty_sub = Type::L;
+    let mut w_sub = rtl.next().unwrap();
+
+    let mut unseen_lms = lms_count;
+    let mut last_lms: Idx = i_sub - 1;
+
+    /* initially: w_sub = data[n-1], w = data[n-2] */
+    for w in rtl {
+        i_sub -= 1;
+        match ty_sub {
+            Type::L => {
+                if w < w_sub {
+                    ty_sub = Type::S;
+                }
+            },
+            Type::S => {
+                if w > w_sub {
+                    /* w_sub is LMS: write the substring length into its lookup index */
+                    sa[lookup_index(lms_count, i_sub)] = (1 + last_lms as Idx) - i_sub;
+
+                    last_lms = i_sub;
+
+                    unseen_lms -= 1;
+                    if unseen_lms == 0 {
+                        break;
+                    }
+
+                    ty_sub = Type::L;
+                }
+            },
+        }
+        w_sub = w;
+    }
+
+    // In-place map LMS-Substrings to Lexical Names at lookup indices
+    let mut rword: u32 = 0;
+
+    let mut prv_lms = 0; /* use zero as null since Idx 0 is never LMS */
+    let mut prv_lms_len: usize = 0;
+    for i in 0..lms_count {
+        let cur_lms = sa[i];
+        let cur_lms_len: usize = sa[lookup_index(lms_count, cur_lms)] as usize;
+
+        let eq = if prv_lms != 0 {
+            if (prv_lms_len == cur_lms_len) && (prv_lms_len + cur_lms_len < n) {
+                let mut offset = 0;
+                loop {
+                    if offset as usize == prv_lms_len {
+                        break true;
+                    }
+                    if data[prv_lms + offset] != data[cur_lms + offset] {
+                        break false;
+                    }
+                    offset += 1;
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if !eq {
+            if prv_lms != 0 {
+                rword += 1;
+            }
+            prv_lms = cur_lms;
+            prv_lms_len = cur_lms_len;
+        }
+
+        sa[lookup_index(lms_count, cur_lms)] = rword as Idx;
+    }
+
+    // Compress lexical names to form reduced string at end of array
+    let mut write_ptr = n - 1;
+    for p in (lms_count..n).rev() {
+        if sa[p] != Idx::MAX {
+            sa[write_ptr] = sa[p];
+            write_ptr -= 1;
+        }
+    }
+
+    (lms_count, rword as usize + 1)
+}
+
+#[inline]
+fn decode_reduced<W: Word>(data: &Data<W>, sa: &mut Array, lms_count: usize) {
+    let n: usize = data.len();
+
+    // Overwrite Reduced Problem string with LMS indices
+    let mut rtl = data.iter().rev();
+    let mut write_ptr = n - 1;
+
+    /* phantom sentinel */
+    let mut i_sub = n as Idx;
+    let mut ty_sub = Type::L;
+    let mut w_sub = rtl.next().unwrap();
+
+    /* initially: w_sub = data[n-1], w = data[n-2] */
+    for w in rtl {
+        i_sub -= 1;
+        match ty_sub {
+            Type::L => {
+                if w < w_sub {
+                    ty_sub = Type::S;
+                }
+            },
+            Type::S => {
+                if w > w_sub {
+                    /* w_sub is LMS */
+                    sa[write_ptr] = i_sub;
+                    write_ptr -= 1;
+                    ty_sub = Type::L;
+                }
+            },
+        }
+        w_sub = w;
+    }
+
+    // Dereference reduced suffixes and overwrite with corresponding LMS indices
+    for p in 0..lms_count {
+        sa[p] = sa[n - lms_count + sa[p] as usize]
+    }
+
+    // Zero-fill everything after LMS-Suffix indices
+    for p in lms_count..n {
+        sa[p] = 0;
+    }
+}
+
+fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, mut buckets: &mut Buckets<u32>) {
+    let n: usize = data.len();
+    assert!(n > 1);
+
+    // =-=-= SA-IS Step 1: Induced Sort all LMS-Substrings in O(n) =-=-=
+
+    let mut lms_count = 0;
+
+    // Insert LMS-Substrings into respective S-Buckets
+
+    buckets.set_ptrs_to_bucket_tails();
+    let mut rtl = data.iter().rev();
+
+    /* phantom sentinel */
+    let mut i_sub = n as Idx;
+    let mut ty_sub = Type::L;
+    let mut w_sub = rtl.next().unwrap();
+
+    /* initially: w_sub = data[n-1], w = data[n-2] */
+    for w in rtl {
+        i_sub -= 1;
+        match ty_sub {
+            Type::L => {
+                if w < w_sub {
+                    ty_sub = Type::S;
+                }
+            },
+            Type::S => {
+                if w > w_sub {
+                    /* w_sub is LMS */
+                    tail_push(&mut sa, &mut buckets, *w_sub, i_sub);
+                    lms_count += 1;
+                    ty_sub = Type::L;
+                }
+            },
+        }
+        w_sub = w;
+    }
+
+    /* Number of LMS suffixes is provably less than |data|/2 */
+    assert!(lms_count < (n >> 1));
+
+    /* If we don't have multiple LMS-Suffixes we can skip to Step 3 */
+    if lms_count > 1 {
+        // Induced Sort Fwd: {unsorted LMS-Suffixes} => {L-Type LMS-Prefixes}
+        induced_sort_fwd(&data, &mut sa, &mut buckets, true);
+
+        // :: invariant :: Leftmost L-Type LMS-Prefixes are +tive, all else are zero
+
+        // Induced Sort Bck: {L-Type LMS-Prefixes} => {S-Type LMS-Prefixes}
+        induced_sort_bck(&data, &mut sa, &mut buckets, true, false);
+
+        // :: invariant :: Leftmost S-Type LMS-Prefixes (and Idx 0) are -tive, all else are zero
+
+        // Construct reduced problem string at end of array
+        let (lms_count, new_sigma_size) = encode_reduced(&data, &mut sa);
+
+        // =-=-= SA-IS Step 2: Solve Suffix Array for Reduced Problem =-=-=
+
+        if new_sigma_size != lms_count {
+            let (rsa, rdata) = sa.split(lms_count);
+            buckets.rebuild(rdata.iter(), new_sigma_size);
+            sais(new_sigma_size, rdata, rsa, buckets);
+        } else {
+            /* there is a bijection between rwords and LMS-suffixes */
+            for p in 0..lms_count {
+                let w_rank = sa[n - lms_count + p] as usize;
+                sa[w_rank] = p as Idx;
+            }
+        }
+
+        // Convert reduced solution into sorted LMS-Suffixes
+        decode_reduced(&data, &mut sa, lms_count);
+
+        // :: invariant :: LMS-Suffixes are in sorted order in sa[0..lms_count]
+
+        buckets.rebuild(data.iter(), sigma_size);
+        buckets.set_ptrs_to_bucket_tails();
+
+        // Space out LMS-Suffixes into buckets
+        for p in (0..lms_count).rev() {
+            let lms_idx = sa[p];
+            sa[p] = 0;
+            tail_push(&mut sa, &mut buckets, data[lms_idx], lms_idx);
+        }
+    }
+
+    // =-=-= SA-IS Step 3: Use sorted LMS-Suffixes to induce full Suffix Array =-=-=
+    // :: invariant :: LMS-Suffixes are all bucketed and sorted w.r.t each other
+
+    // Induced Sort Fwd: {LMS-Suffixes} => {L-Type Suffixes}
+    induced_sort_fwd(&data, &mut sa, &mut buckets, false);
+
+    // Induced Sort Bck: {L-Type Suffixes} => {S-Type Suffixes}
+    induced_sort_bck(&data, &mut sa, &mut buckets, false, true);
 }
 
 pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
@@ -270,7 +608,7 @@ pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
         }
 
         // Induce S-type LMS-Prefixes from L-type LMS-Prefixes
-        // :: LMS-Suffixes are a subset of S-type LMS-Prefixes
+        // :: LMS-Substrings are a subset of S-type LMS-Prefixes
         // :: +tives are LMLs
 
         buckets.set_ptrs_to_bucket_tails();
@@ -295,7 +633,7 @@ pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
             }
         }
 
-        // Compress sorted LMS-Suffixes into sa[0..lms_count]
+        // Compress sorted LMS-Substrings into sa[0..lms_count]
 
         let mut lms_count = 0;
         for p in 0..buf_n {
@@ -397,7 +735,7 @@ pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
         if new_sigma_size != lms_count {
             let (rsa, rdata) = sa.split(lms_count);
             let mut rbuckets = Buckets::build(rdata.iter(), new_sigma_size);
-            sais(rdata, rsa, &mut rbuckets);
+            sais(new_sigma_size, rdata, rsa, &mut rbuckets);
         } else {
             // bijection between rwords and valleys
             for p in 0..lms_count {
@@ -505,7 +843,7 @@ pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
     let mut i_sup;
     let mut i_sup2;
 
-    let mut start_ptr = usize::MAX;
+    let mut start_suffix = usize::MAX;
 
     for p in (0..buf_n).rev() {
         i = sa[p];
@@ -522,7 +860,7 @@ pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
                 0
             } else if data[i_sup2] > data[i_sup] {
                 if (i_sup as usize) < n {
-                    !(data[i_sup] as Idx)
+                    !(data[i_sup2] as Idx)
                 } else {
                     !256
                 }
@@ -533,18 +871,18 @@ pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
         } else if i < 0 {
             sa[p] = !sa[p];
         } else {
-            start_ptr = p;
+            start_suffix = p;
         }
     }
 
-    let mut data = data.0;
+    let data = data.inner();
 
-    println!("{:?}, {}", sa.0, start_ptr);
-
+    let mut start_ptr = usize::MAX;
     let mut j = n;
     for p in 0..buf_n {
-        if p == start_ptr {
+        if p == start_suffix {
             data[j] = data[n - 1];
+            start_ptr = j - n;
             j += 1;
         } else {
             let w = sa[p];
