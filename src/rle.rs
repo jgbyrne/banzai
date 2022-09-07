@@ -1,7 +1,9 @@
 pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
     let n = buf.len();
 
-    if n == 0 { return (vec![], 0) }
+    if n == 0 {
+        return (vec![], 0);
+    }
 
     let max_len = 100_000 * level;
 
@@ -34,9 +36,9 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
         margin -= 1;
 
         if b != hop || b != buf[i + 1] {
-            i += 2; b = hop;
-        }
-        else {
+            i += 2;
+            b = hop;
+        } else {
             let mut run = false;
 
             if i > 0 {
@@ -44,11 +46,11 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
                     // [i-1, i, i+1, i+2] are a run
                     if margin < 2 {
                         i += 2;
-                        break
+                        break;
                     }
                     out_buf.push(hop);
                     margin -= 1;
-                    
+
                     i += 3;
                     run = true;
                 }
@@ -97,9 +99,9 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
                 } else {
                     break;
                 }
-
             } else {
-                i += 2; b = hop;
+                i += 2;
+                b = hop;
             }
         }
     }

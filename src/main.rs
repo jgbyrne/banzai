@@ -1,6 +1,6 @@
-mod rle;
 mod bwt;
 mod out;
+mod rle;
 use out::OutputStream;
 
 use std::fs;
@@ -18,7 +18,9 @@ fn main() {
 
     write_stream_header(&mut output, 1).unwrap();
 
-    output.write_bytes(&[0x17, 0x72, 0x45, 0x38, 0x50, 0x90]).unwrap();
+    output
+        .write_bytes(&[0x17, 0x72, 0x45, 0x38, 0x50, 0x90])
+        .unwrap();
     output.write_bytes(&[0x00, 0x00, 0x00, 0x00]).unwrap();
 
     output.close().unwrap();
@@ -43,17 +45,17 @@ mod tests {
         let writer = io::BufWriter::new(&mut out);
 
         let mut output = OutputStream::new(writer);
-        
+
         /* 110 */
         output.write_bits(6u8, 3).unwrap();
         /* 11001000 */
         output.write_byte(200u8).unwrap();
         /* 0 */
-        output.write_bits(0u8, 1).unwrap(); 
+        output.write_bits(0u8, 1).unwrap();
         /* 11001010 11111110 10111010 10111110 */
         output.write_bytes(&[0xCA, 0xFE, 0xBA, 0xBE]).unwrap();
         /* 0000001 */
-        output.write_bits(1u8, 7).unwrap(); 
+        output.write_bits(1u8, 7).unwrap();
 
         output.close().unwrap();
 
@@ -66,8 +68,5 @@ mod tests {
         let (rle, ptr) = rle::rle_one(test.as_slice(), 1);
         assert!(ptr == test.len());
         assert!(&rle == b"aaabbbcccdddd\x02eeefgghiiijkllmmmm\x04nnoo")
-
     }
-
 }
-

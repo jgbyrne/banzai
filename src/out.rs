@@ -63,8 +63,7 @@ impl<W: io::Write> OutputStream<W> {
 
         if self.strand_bits == 0 {
             self.writer.write(bytes)?;
-        }
-        else {
+        } else {
             let rshift = self.strand_bits;
             let lshift = 8 - self.strand_bits;
             let mut buf = Vec::with_capacity(n_bytes + 1);
