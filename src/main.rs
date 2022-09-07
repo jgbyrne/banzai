@@ -1,3 +1,4 @@
+mod rle;
 mod bwt;
 mod out;
 use out::OutputStream;
@@ -57,6 +58,15 @@ mod tests {
         output.close().unwrap();
 
         assert!(out == [0xD9, 0x0C, 0xAF, 0xEB, 0xAB, 0xE0, 0x20]);
+    }
+
+    #[test]
+    fn rle_basic() {
+        let test = b"aaabbbcccddddddeeefgghiiijkllmmmmmmmmnnoo";
+        let (rle, ptr) = rle::rle_one(test.as_slice(), 1);
+        assert!(ptr == test.len());
+        assert!(&rle == b"aaabbbcccdddd\x02eeefgghiiijkllmmmm\x04nnoo")
+
     }
 
 }
