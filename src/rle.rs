@@ -1,3 +1,23 @@
+struct BoundedBuffer {
+    bound: usize,
+    buffer: Vec<u8>,
+}
+
+impl BoundedBuffer {
+    fn new(bound: usize) -> Self {
+        Self {
+            bound,
+            buffer: Vec::with_capacity(bound),
+        }
+    }
+
+    fn push(&mut self, byte: u8) {
+        assert!(self.bound > 0);
+        self.buffer.push(byte);
+        self.bound -= 1;
+    }
+}
+
 pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
     let n = buf.len();
 
@@ -7,23 +27,21 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
 
     let max_len = 100_000 * level;
 
-    let mut out_buf = Vec::with_capacity(max_len);
-    let mut margin = max_len;
+    let mut out = BoundedBuffer::new(max_len);
 
     let mut i = 0;
     let mut b = buf[i];
-    while margin > 0 {
-        out_buf.push(b);
-        margin -= 1;
+    while out.bound > 0 {
+        out.push(b);
 
-        if margin == 0 {
+        if out.bound == 0 {
             i += 1;
             break;
         }
 
         if i + 2 >= n {
             if i + 1 < n {
-                out_buf.push(buf[i + 1]);
+                out.push(buf[i + 1]);
                 i += 2
             } else {
                 i += 1;
@@ -32,8 +50,7 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
         }
 
         let hop = buf[i + 2];
-        out_buf.push(buf[i + 1]);
-        margin -= 1;
+        out.push(buf[i + 1]);
 
         if b != hop || b != buf[i + 1] {
             i += 2;
@@ -44,12 +61,11 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
             if i > 0 {
                 if b == buf[i - 1] {
                     // [i-1, i, i+1, i+2] are a run
-                    if margin < 2 {
+                    if out.bound < 2 {
                         i += 2;
                         break;
                     }
-                    out_buf.push(hop);
-                    margin -= 1;
+                    out.push(hop);
 
                     i += 3;
                     run = true;
@@ -60,19 +76,17 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
                 let step = buf[i + 3];
                 if b == step {
                     // [i, i+1, i+2, i+3] are a run
-                    if margin == 0 {
+                    if out.bound == 0 {
                         i += 2;
                         break;
                     }
-                    out_buf.push(hop);
-                    margin -= 1;
+                    out.push(hop);
 
-                    if margin < 2 {
+                    if out.bound < 2 {
                         i += 3;
                         break;
                     }
-                    out_buf.push(step);
-                    margin -= 1;
+                    out.push(step);
 
                     i += 4;
                     run = true;
@@ -91,8 +105,7 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
                     }
                     break;
                 }
-                out_buf.push(rep_count);
-                margin -= 1;
+                out.push(rep_count);
 
                 if i < n {
                     b = buf[i]
@@ -106,5 +119,5 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
         }
     }
 
-    (out_buf, i)
+    (out.buffer, i)
 }
