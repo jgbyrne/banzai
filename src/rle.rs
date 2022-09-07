@@ -43,7 +43,7 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
             },
             _ => {
                 out.push(b);
-            }
+            },
         }
 
         if i + 2 >= n {

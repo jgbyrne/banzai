@@ -503,24 +503,48 @@ fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, mut buckets: &mut Buc
     induced_sort_bck(&data, &mut sa, &mut buckets, false, true);
 }
 
-pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
+pub struct Bwt {
+    pub bwt: Vec<u8>,
+    pub ptr: usize,
+    pub has_byte: Vec<bool>,
+}
+
+pub fn bwt(mut input: Vec<u8>) -> Bwt {
     if usize::BITS < 32 {
         panic!("This library does not support usize < 32");
     }
 
     let n: usize = input.len();
+    let mut has_byte = vec![false; 256];
 
     // Establish invariant: 1 < n
     match n {
-        0 => return (vec![], usize::MAX),
-        1 => return (input, 0),
+        0 => {
+            return Bwt {
+                bwt: vec![],
+                ptr: usize::MAX,
+                has_byte,
+            };
+        },
+        1 => {
+            has_byte[input[0] as usize] = true;
+            return Bwt {
+                bwt: input,
+                ptr: 0,
+                has_byte,
+            };
+        },
         _ => (),
     }
 
     // Establish invariant: n < Idx::MAX / 4
     // :: bzip2 block size will never exceed this
     if n >= ((Idx::MAX / 4) as usize) - 1 {
-        return (vec![], usize::MAX);
+        return Bwt {
+            bwt: vec![],
+            ptr: usize::MAX,
+            has_byte,
+        };
     }
 
     // To implement wrap-around suffix sorting, we must
@@ -546,7 +570,9 @@ pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
     let mut i_sub = buf_n as Idx;
     let mut ty_sub = Type::L; // phantom sentinel
     let mut w_sub = rtl.next().unwrap();
+    has_byte[*w_sub as usize] = true;
     for w in rtl {
+        has_byte[*w as usize] = true;
         i_sub -= 1;
         match ty_sub {
             Type::L => {
@@ -708,5 +734,9 @@ pub fn bwt(mut input: Vec<u8>) -> (Vec<u8>, usize) {
         }
     }
 
-    (input.split_off(n), start_ptr)
+    Bwt {
+        bwt: input.split_off(n),
+        ptr: start_ptr,
+        has_byte,
+    }
 }
