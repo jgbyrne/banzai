@@ -30,12 +30,19 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
 
     let mut i = 0;
     let mut b = buf[i];
-    while out.bound > 0 {
-        out.push(b);
-
-        if out.bound == 0 {
-            i += 1;
-            break;
+    loop {
+        match out.bound {
+            0 => {
+                break;
+            },
+            1 => {
+                out.push(b);
+                i += 1;
+                break;
+            },
+            _ => {
+                out.push(b);
+            }
         }
 
         if i + 2 >= n {
