@@ -28,6 +28,7 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
     let max_len = 100_000 * level;
     let mut out = BoundedBuffer::new(max_len);
 
+    let mut floor = 0;
     let mut i = 0;
     let mut b = buf[i];
     loop {
@@ -64,7 +65,7 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
         } else {
             let mut run = false;
 
-            if i > 0 {
+            if i > floor {
                 if b == buf[i - 1] {
                     // [i-1, i, i+1, i+2] are a run
                     if out.bound < 2 {
@@ -112,6 +113,7 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
                     break;
                 }
                 out.push(rep_count);
+                floor = i;
 
                 if i < n {
                     b = buf[i]
