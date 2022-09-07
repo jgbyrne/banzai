@@ -3,7 +3,8 @@
 
 pub struct Mtf {
     pub output: Vec<u16>,
-    pub names: Vec<u8>,
+    pub num_syms: usize,
+    pub freqs: Vec<usize>,
 }
 
 pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
@@ -20,10 +21,11 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
 
     let run_a = 0; let run_b = 1; let eob = num_names + 1; 
 
+    let mut freqs: Vec<usize> = vec![0; 258];
     let mut output: Vec<u16> = Vec::with_capacity(buf.len() / 3);
     let mut recency = (0..num_names).map(|s| s as u8).collect::<Vec<u8>>();
 
-    let rle = |output: &mut Vec<u16>, zero_count: usize| {
+    let rle = |output: &mut Vec<u16>, freqs: &mut Vec<usize>, zero_count: usize| {
         let mut code = zero_count + 1;
         loop {
             let bit = code & 1;
@@ -32,8 +34,14 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
                 break;
             }
             match bit {
-                0 => output.push(run_a),
-                _ /* 1 */ => output.push(run_b),
+                0 => {
+                    output.push(run_a);
+                    freqs[run_a as usize] += 1;
+                },
+                _ /* 1 */ => {
+                    output.push(run_b);
+                    freqs[run_b as usize] += 1;
+                },
             }
         }
     };
@@ -49,7 +57,7 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
         }
         else {
             if zero_count != 0 {
-                rle(&mut output, zero_count);
+                rle(&mut output, &mut freqs, zero_count);
                 zero_count = 0;
             }
 
@@ -64,6 +72,7 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
 
                 if name == n0 {
                     output.push((r_i + 1) as u16); 
+                    freqs[r_i + 1] += 1;
                     break;
                 }
             }
@@ -73,10 +82,11 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
     }
     
     if zero_count != 0 {
-        rle(&mut output, zero_count);
+        rle(&mut output, &mut freqs, zero_count);
     }
 
     output.push(eob);
+    freqs[eob as usize] = 1;
 
-    Mtf { output, names: recency }
+    Mtf { output, num_syms: (num_names as usize) + 2, freqs }
 }
