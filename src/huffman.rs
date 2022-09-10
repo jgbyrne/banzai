@@ -220,7 +220,7 @@ const INIT_LEN_LOW: u8 = 0;
 const NUM_REFINEMENTS: u8 = 4;
 const SELECTION_WIDTH: usize = 50;
 
-fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) -> io::Result<()> {
+pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) -> io::Result<()> {
     let input = mtf.output;
     let input_size = input.len();
     let num_syms = mtf.num_syms;

@@ -6,8 +6,13 @@ mod rle;
 mod out;
 use out::OutputStream;
 
+use std::env;
+use std::process;
 use std::fs;
 use std::io;
+use std::io::Read;
+
+use crc::Crc;
 
 fn write_stream_header<W: io::Write>(output: &mut OutputStream<W>, level: usize) -> io::Result<()> {
     assert!(level >= 1 && level <= 9);
@@ -15,11 +20,66 @@ fn write_stream_header<W: io::Write>(output: &mut OutputStream<W>, level: usize)
     output.write_bytes(&[0x42, 0x5A, 0x68, level_byte])
 }
 
+fn write_block_header<W: io::Write>(output: &mut OutputStream<W>, crc: u32, ptr: usize) -> io::Result<()> {
+    output.write_bytes(&[0x31, 0x41, 0x59, 0x26, 0x53, 0x59])?;
+    /* this needs more thought... need most-significant-bits on left because bzip
+    output.write_bytes(&crc.to_be_bytes())?;
+    output.write_bits(1, 1)?;
+
+    let ptr_bytes = ptr.to_be_bytes();
+    let slice_left = ptr_bytes.len() - 3;
+    output.write_bytes(&ptr.to_be_bytes()[slice_left..])
+    */
+    unimplemented!();
+}
+
 fn main() {
-    let writer = io::BufWriter::new(fs::File::create("out.bz2").unwrap());
+    let mut args = env::args().skip(1);
+    let mut buffer = Vec::new();
+    let path = match args.next() {
+        Some(path) => {
+            match fs::File::open(&path) {
+                Ok(mut file) => {
+                    if let Err(e) = file.read_to_end(&mut buffer) {
+                        eprintln!("[error] {}", e);
+                        process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("[error] {}", e);
+                    process::exit(1);
+                },
+            }
+            path
+        },
+        None => {
+            eprintln!("banzai <file_to_encode>");
+            process::exit(1);
+        },
+    };
+
+    let buffer = buffer;
+    let level = 1;
+
+    let writer = io::BufWriter::new(fs::File::create(&format!("{}.bz2", path)).unwrap());
     let mut output = OutputStream::new(writer);
 
-    write_stream_header(&mut output, 1).unwrap();
+    write_stream_header(&mut output, level).unwrap();
+
+    // Build and write one block for the moment
+
+    let crc = crc::Crc::<u32>::new(&crc::CRC_32_ISO_HDLC);
+    let chk = crc.checksum(&buffer);
+
+    let (buffer, buffer_len) = rle::rle_one(&buffer, level);
+
+    let bwt_out = bwt::bwt(buffer);
+
+    write_block_header(&mut output, chk, bwt_out.ptr).unwrap();
+
+    let mtf_out = mtf::mtf_and_rle(bwt_out.bwt, bwt_out.has_byte);
+
+    //huffman::encode(&mut output, mtf_out).unwrap();
 
     output
         .write_bytes(&[0x17, 0x72, 0x45, 0x38, 0x50, 0x90])
