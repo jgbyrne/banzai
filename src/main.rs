@@ -1,7 +1,9 @@
+mod rle;
 mod bwt;
 mod mtf;
+mod huffman;
+
 mod out;
-mod rle;
 use out::OutputStream;
 
 use std::fs;
