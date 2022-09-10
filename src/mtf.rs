@@ -17,9 +17,12 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
         }
     }
 
-    assert!(num_names > 0); assert!(num_names < 257);
+    assert!(num_names > 0);
+    assert!(num_names < 257);
 
-    let run_a = 0; let run_b = 1; let eob = num_names + 1; 
+    let run_a = 0;
+    let run_b = 1;
+    let eob = num_names + 1;
 
     let mut freqs: Vec<usize> = vec![0; 258];
     let mut output: Vec<u16> = Vec::with_capacity(buf.len() / 3);
@@ -54,14 +57,13 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
 
         if name == primary {
             zero_count += 1;
-        }
-        else {
+        } else {
             if zero_count != 0 {
                 rle(&mut output, &mut freqs, zero_count);
                 zero_count = 0;
             }
 
-            let mut n0 = primary; 
+            let mut n0 = primary;
             recency[0] = name;
 
             let r_iter = recency.iter_mut().enumerate().skip(1);
@@ -71,7 +73,7 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
                 n0 = n1;
 
                 if name == n0 {
-                    output.push((r_i + 1) as u16); 
+                    output.push((r_i + 1) as u16);
                     freqs[r_i + 1] += 1;
                     break;
                 }
@@ -80,7 +82,7 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
 
         i += 1;
     }
-    
+
     if zero_count != 0 {
         rle(&mut output, &mut freqs, zero_count);
     }
@@ -88,5 +90,9 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
     output.push(eob);
     freqs[eob as usize] = 1;
 
-    Mtf { output, num_syms: (num_names as usize) + 2, freqs }
+    Mtf {
+        output,
+        num_syms: (num_names as usize) + 2,
+        freqs,
+    }
 }
