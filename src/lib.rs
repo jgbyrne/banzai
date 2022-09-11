@@ -67,8 +67,8 @@ fn write_stream_footer<W: io::Write>(output: &mut OutputStream<W>, crc: u32) -> 
 
 pub fn encode<W, I>(input: I, writer: io::BufWriter<W>, level: usize) -> io::Result<()>
 where
-    W: io::Write,
     I: convert::AsRef<[u8]>,
+    W: io::Write,
 {
     let input = input.as_ref();
     let mut output = OutputStream::new(writer);

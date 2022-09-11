@@ -2,9 +2,22 @@
 
 **banzai** is a pure Rust bzip2 encoder. It is currently pre-alpha software.
 
-### Usage
+### Command Line Usage
 
     banzai <file_to_encode>
+
+Compresses and writes to `file_to_encode.bz2`.
+
+### Library Usage
+
+```rust
+fn encode(input: I, writer: io::BufWriter<W>, level: usize) -> io::Result<()>
+where
+    I: convert::AsRef<[u8]>,
+    W: io::Write
+```
+
+Call `encode` with a reference to an input buffer and a `BufWriter`. The final parameter is `level`, which is a number between `1` and `9` inclusive, which corresponds to the block size (block size is `level * 100_000` bytes). The typical default is `9`.
 
 ### Acknowledgements
 
