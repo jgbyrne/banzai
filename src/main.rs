@@ -93,7 +93,7 @@ fn main() {
     let buffer = buffer;
     let level = 1;
 
-    let writer = io::BufWriter::new(fs::File::create(&format!("{}.bz2", path)).unwrap());
+    let writer = io::BufWriter::new(fs::File::create(&format!("{}.banzai.bz2", path)).unwrap());
     let mut output = OutputStream::new(writer);
 
     write_stream_header(&mut output, level).unwrap();
@@ -108,7 +108,6 @@ fn main() {
     let bwt_out = bwt::bwt(buffer);
 
     write_block_header(&mut output, sum, bwt_out.ptr).unwrap();
-
     write_sym_map(&mut output, &bwt_out.has_byte).unwrap();
 
     let mtf_out = mtf::mtf_and_rle(bwt_out.bwt, bwt_out.has_byte);

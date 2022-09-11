@@ -202,7 +202,7 @@ impl FrequencyQueue {
             let right_idx = left_idx + 1;
 
             let (below_idx, (below_sym, below_priority)) = {
-                if right_idx <= heap_size && self.read_item(left_idx).1 < self.read_item(right_idx).1 {
+                if right_idx <= heap_size && self.read_item(right_idx).1 < self.read_item(left_idx).1 {
                     (right_idx, *self.item(right_idx))
                 } else {
                     (left_idx, *self.item(left_idx))
@@ -230,11 +230,10 @@ fn build_table_from_freqs(num_syms: usize, freqs: &Vec<usize>) -> Table {
 
     loop {
         let mut tree = Tree::with_n_leaves(num_syms);
-        let mut queue = FrequencyQueue::new(num_syms, freqs, 1);
+        let mut queue = FrequencyQueue::new(num_syms, freqs, scaling);
 
         loop {
             let (sym_one, priority_one) = queue.extract();
-
             let (sym_two, priority_two) = queue.extract();
 
             let parent = tree.tie(sym_one as usize, sym_two as usize);

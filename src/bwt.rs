@@ -446,7 +446,7 @@ fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, mut buckets: &mut Buc
     }
 
     /* Number of LMS suffixes is provably less than |data|/2 */
-    assert!(lms_count < (n >> 1));
+    assert!(lms_count <= (n >> 1));
 
     /* If we don't have multiple LMS-Suffixes we can skip to Step 3 */
     if lms_count > 1 {
