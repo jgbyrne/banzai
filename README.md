@@ -1,7 +1,12 @@
 ## banzai
 
-**banzai** is a pure Rust bzip2 encoder. It is currently pre-alpha software and breaks on most non-trivial inputs.
+**banzai** is a pure Rust bzip2 encoder. It is currently pre-alpha software.
 
+### Usage
+
+    banzai <file_to_encode>
+
+### Acknowledgements
 
 This is original libre software. However, implementation guidance was derived from several free-software sources. 
 

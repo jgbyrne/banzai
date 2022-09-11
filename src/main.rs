@@ -129,7 +129,7 @@ fn main() {
     };
 
     let buffer = buffer;
-    let writer = io::BufWriter::new(fs::File::create(&format!("{}.banzai.bz2", path)).unwrap());
+    let writer = io::BufWriter::new(fs::File::create(&format!("{}.bz2", path)).unwrap());
     let level = 9;
     if let Err(io_err) = encode(buffer, writer, level) {
         eprintln!("Error writing compressed output: {}", io_err);
