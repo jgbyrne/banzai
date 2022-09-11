@@ -455,7 +455,7 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
         }
 
         let mut coding = vec![(0, 0); num_syms];
-        let mut word = 0;
+        let mut word: u32 = 0;
         for l in min_len..=max_len {
             for s in 0..num_syms {
                 if table[s as usize] == l {
@@ -467,6 +467,13 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
         }
         codings.push(coding);
     }
+
+    /*
+    println!("Encoding Block with {} selectors, {} trees, {} bytes, {} symbols", selectors.len(), num_tables, input.len(), num_syms);
+    for t in 0..num_tables {
+        println!("\t-> Coding table {}: {:?}", t, &codings[t]);
+    }
+    */
 
     let mut sel = selectors[0];
     for (i, s) in input.iter().enumerate() {

@@ -53,17 +53,22 @@ impl<W: io::Write> OutputStream<W> {
         io::Result::Ok(())
     }
 
-    pub fn write_bits_u32(&mut self, chunk: u32, mut num_bits: usize) -> io::Result<()> {
+    pub fn write_bits_u32(&mut self, chunk: u32, num_bits: usize) -> io::Result<()> {
         assert!(num_bits <= 32);
         let bytes = chunk.to_be_bytes();
-        let mut bptr = 3;
-        while num_bits >= 8 {
-            self.write_byte(bytes[bptr])?;
-            bptr -= 1;
-            num_bits -= 8;
+
+        let num_full_bytes = num_bits / 8;
+        let num_rem_bits = num_bits % 8;
+
+        let mut bptr = 3 - num_full_bytes;
+        if num_rem_bits != 0 {
+            self.write_bits(bytes[bptr], num_rem_bits)?;
         }
-        if bptr >= 0 && num_bits != 0 {
-            self.write_bits(bytes[bptr], num_bits)?;
+        bptr += 1;
+
+        while bptr < 4 {
+            self.write_byte(bytes[bptr])?;
+            bptr += 1;
         }
         Ok(())
     }
