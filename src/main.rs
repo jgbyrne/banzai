@@ -62,6 +62,7 @@ fn write_sym_map<W: io::Write>(
     for s in sectors {
         output.write_bytes(&s.to_be_bytes())?;
     }
+    Ok(())
 }
 
 fn main() {
@@ -102,13 +103,13 @@ fn main() {
     let mut sum_buf = buffer.clone();
     let sum = crc32::checksum(&mut sum_buf);
 
-    let (buffer, buffer_len) = rle::rle_one(&buffer, level);
+    let (buffer, _) = rle::rle_one(&buffer, level);
 
     let bwt_out = bwt::bwt(buffer);
 
     write_block_header(&mut output, sum, bwt_out.ptr).unwrap();
 
-    write_sym_map(&mut output, &bwt_out.has_byte);
+    write_sym_map(&mut output, &bwt_out.has_byte).unwrap();
 
     let mtf_out = mtf::mtf_and_rle(bwt_out.bwt, bwt_out.has_byte);
 
@@ -117,7 +118,7 @@ fn main() {
     output
         .write_bytes(&[0x17, 0x72, 0x45, 0x38, 0x50, 0x90])
         .unwrap();
-    output.write_bytes(&[0x00, 0x00, 0x00, 0x00]).unwrap();
+    output.write_bytes(&sum.to_be_bytes()).unwrap();
 
     output.close().unwrap();
 }

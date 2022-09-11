@@ -79,10 +79,37 @@ impl Tree {
 
         (lengths, max_len)
     }
+
+    fn str_node(&self, node: usize, depth: usize) -> String {
+        let indent = " |".repeat(depth);
+        if self.nodes[node].lchild.is_none() && self.nodes[node].rchild.is_none() {
+            format!("{}{}", indent, node)
+        }
+        else {
+            let lstr = match self.nodes[node].lchild {
+                Some(l) => {
+                    self.str_node(l, depth+1)
+                },
+                None => format!("{}-", "  ".repeat(depth+1)),
+            };
+
+            let rstr = match self.nodes[node].rchild {
+                Some(r) => {
+                    self.str_node(r, depth+1)
+                },
+                None => format!("{}-", "  ".repeat(depth+1)),
+            };
+            format!("{}{}\n{}\n{}", indent, node, lstr, rstr)
+        }
+    }
+    
+    fn print(&self) {
+        println!("{}", self.str_node(0, 0));
+    }
 }
 
 // Priority is (freq_sum, max_word_len)
-#[derive(PartialEq, PartialOrd, Clone, Copy)]
+#[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 struct Priority(usize, u8);
 
 impl Add for Priority {
@@ -111,16 +138,26 @@ impl FrequencyQueue {
         };
         for s in 0..num_syms {
             let q_freq = (freqs[s] / scaling) + 1;
-            queue.insert(s as u16, Priority(q_freq, 0));
+            queue.insert((s + 1) as u16, Priority(q_freq, 0));
         }
         queue
     }
 
+    #[inline]
+    fn item<'s>(&'s mut self, idx: usize) -> &'s mut (u16, Priority) {
+        &mut self.heap[idx - 1]
+    }
+
+    #[inline]
+    fn read_item<'s>(&'s self, idx: usize) -> &'s (u16, Priority) {
+        &self.heap[idx - 1]
+    }
+
     fn insert(&mut self, sym: u16, priority: Priority) {
-        let init_idx = self.heap.len();
+        let init_idx = self.heap.len() + 1;
         self.heap.push((sym, priority));
 
-        if init_idx == 0 {
+        if init_idx == 1 {
             return;
         }
 
@@ -128,11 +165,11 @@ impl FrequencyQueue {
         loop {
             let above_idx = this_idx >> 1;
 
-            let (above_sym, above_priority) = self.heap[above_idx];
+            let (above_sym, above_priority) = *self.item(above_idx);
             if priority < above_priority {
-                self.heap[this_idx] = (above_sym, above_priority);
+                *self.item(this_idx) = (above_sym, above_priority);
                 this_idx = above_idx;
-                if this_idx == 0 {
+                if this_idx == 1 {
                     break;
                 }
             } else {
@@ -140,7 +177,7 @@ impl FrequencyQueue {
             }
         }
         if this_idx != init_idx {
-            self.heap[this_idx] = (sym, priority);
+            *self.item(this_idx) = (sym, priority);
         }
     }
 
@@ -151,32 +188,34 @@ impl FrequencyQueue {
             _ => {},
         }
 
-        let root = self.heap[0];
+        let root = *self.item(1);
         let (sym, priority) = self.heap.pop().unwrap();
-        self.heap[0] = (sym, priority);
+        *self.item(1) = (sym, priority);
         let heap_size = self.heap.len();
 
-        let mut this_idx = 0;
-        loop {
+        let mut this_idx = 1;
+        let final_idx = loop {
             let left_idx = this_idx << 1;
-            if left_idx >= heap_size {
-                break;
+            if left_idx > heap_size {
+                break this_idx;
             }
             let right_idx = left_idx + 1;
 
-            let (below_idx, (below_sym, below_priority)) =
-                if right_idx < heap_size && self.heap[left_idx].1 < self.heap[right_idx].1 {
-                    (right_idx, self.heap[right_idx])
+            let (below_idx, (below_sym, below_priority)) = {
+                if right_idx <= heap_size && self.read_item(left_idx).1 < self.read_item(right_idx).1 {
+                    (right_idx, *self.item(right_idx))
                 } else {
-                    (left_idx, self.heap[left_idx])
-                };
-
+                    (left_idx, *self.item(left_idx))
+                }
+            };
+    
             if priority < below_priority {
-                break;
+                break this_idx;
             }
-            self.heap[this_idx] = (below_sym, below_priority);
+            *self.item(this_idx) = (below_sym, below_priority);
             this_idx = below_idx;
-        }
+        };
+        *self.item(final_idx) = (sym, priority);
         root
     }
 
@@ -195,6 +234,7 @@ fn build_table_from_freqs(num_syms: usize, freqs: &Vec<usize>) -> Table {
 
         loop {
             let (sym_one, priority_one) = queue.extract();
+
             let (sym_two, priority_two) = queue.extract();
 
             let parent = tree.tie(sym_one as usize, sym_two as usize);
@@ -245,10 +285,10 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
 
         let mut freq_acc = 0;
 
-        let mut sym_right = 0;
+        let mut sym_right = sym_left;
         loop {
             freq_acc += mtf.freqs[sym_right];
-            if freq_acc >= freq_target || sym_right == num_syms {
+            if freq_acc >= freq_target || (sym_right + 1) == num_syms {
                 break;
             }
             sym_right += 1;
@@ -344,5 +384,98 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
         }
     }
 
-    unimplemented!();
+    output.write_bits(num_tables as u8, 3)?;
+
+    let num_selectors = selectors.len() as u16;
+    let num_sel_bytes = num_selectors.to_be_bytes();
+    output.write_bits(num_sel_bytes[0], 7)?;
+    output.write_byte(num_sel_bytes[1])?;
+
+    let mut selectors_mtf = Vec::with_capacity(num_tables);
+    let mut idx_codes = Vec::with_capacity(num_tables);
+
+    for i in 0..num_tables {
+        selectors_mtf.push(i);
+        if i == 0 {
+            idx_codes.push(0);
+        } else {
+            // 'i' ones followed by a zero
+            idx_codes.push((1 << (i + 1)) - 2)
+        }
+    }
+
+    for sel in selectors.iter() {
+        let mut bump = selectors_mtf[0];
+        if bump == *sel {
+            output.write_bits(0, 1)?;
+        } else {
+            let mut idx = 1;
+            loop {
+                let stack_sel = selectors_mtf[idx];
+                selectors_mtf[idx] = bump;
+                if stack_sel == *sel {
+                    output.write_bits(idx_codes[idx], idx + 1)?;
+                    break;
+                }
+                bump = stack_sel;
+                idx += 1;
+            }
+            selectors_mtf[0] = *sel;
+        }
+    }
+
+    let mut codings = Vec::with_capacity(num_tables);
+
+    for table in tables {
+        let mut min_len = u8::MAX;
+        let mut max_len = 0;
+
+        output.write_bits(table[0], 5)?;
+        let mut acc = table[0];
+        for l in table.iter() {
+            loop {
+                if *l == acc {
+                    output.write_bits(0, 1)?;
+                    break;
+                }
+                if acc < *l {
+                    output.write_bits(2, 2)?;
+                    acc += 1;
+                } else if acc > *l {
+                    output.write_bits(3, 2)?;
+                    acc -= 1;
+                }
+            }
+            if *l < min_len {
+                min_len = *l;
+            }
+            if *l > max_len {
+                max_len = *l;
+            }
+        }
+
+        let mut coding = vec![(0, 0); num_syms];
+        let mut word = 0;
+        for l in min_len..=max_len {
+            for s in 0..num_syms {
+                if table[s as usize] == l {
+                    coding[s as usize] = (l as usize, word);
+                    word += 1;
+                }
+            }
+            word <<= 1;
+        }
+        codings.push(coding);
+    }
+
+    let mut sel = selectors[0];
+    for (i, s) in input.iter().enumerate() {
+        if i % 50 == 0 {
+            sel = selectors[i / 50];
+        }
+        let (word_len, word) = codings[sel][*s as usize];
+        output.write_bits_u32(word, word_len)?;
+    }
+
+    Ok(())
 }
