@@ -85,25 +85,20 @@ impl Tree {
         let indent = " |".repeat(depth);
         if self.nodes[node].lchild.is_none() && self.nodes[node].rchild.is_none() {
             format!("{}{}", indent, node)
-        }
-        else {
+        } else {
             let lstr = match self.nodes[node].lchild {
-                Some(l) => {
-                    self.str_node(l, depth+1)
-                },
-                None => format!("{}-", "  ".repeat(depth+1)),
+                Some(l) => self.str_node(l, depth + 1),
+                None => format!("{}-", "  ".repeat(depth + 1)),
             };
 
             let rstr = match self.nodes[node].rchild {
-                Some(r) => {
-                    self.str_node(r, depth+1)
-                },
-                None => format!("{}-", "  ".repeat(depth+1)),
+                Some(r) => self.str_node(r, depth + 1),
+                None => format!("{}-", "  ".repeat(depth + 1)),
             };
             format!("{}{}\n{}\n{}", indent, node, lstr, rstr)
         }
     }
-    
+
     #[allow(unused)]
     fn print(&self) {
         println!("{}", self.str_node(0, 0));
@@ -204,13 +199,15 @@ impl FrequencyQueue {
             let right_idx = left_idx + 1;
 
             let (below_idx, (below_sym, below_priority)) = {
-                if right_idx <= heap_size && self.read_item(right_idx).1 < self.read_item(left_idx).1 {
+                if right_idx <= heap_size
+                    && self.read_item(right_idx).1 < self.read_item(left_idx).1
+                {
                     (right_idx, *self.item(right_idx))
                 } else {
                     (left_idx, *self.item(left_idx))
                 }
             };
-    
+
             if priority < below_priority {
                 break this_idx;
             }

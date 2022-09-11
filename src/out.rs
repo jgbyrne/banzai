@@ -73,7 +73,6 @@ impl<W: io::Write> OutputStream<W> {
         Ok(())
     }
 
-
     pub fn write_byte(&mut self, byte: u8) -> io::Result<()> {
         self.write_bits(byte, 8)
     }

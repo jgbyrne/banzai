@@ -63,6 +63,46 @@ fn write_sym_map<W: io::Write>(
     Ok(())
 }
 
+fn write_stream_footer<W: io::Write>(output: &mut OutputStream<W>, crc: u32) -> io::Result<()> {
+    output.write_bytes(&[0x17, 0x72, 0x45, 0x38, 0x50, 0x90])?;
+    output.write_bytes(&crc.to_be_bytes())
+}
+
+fn encode<W: io::Write>(input: Vec<u8>, writer: io::BufWriter<W>, level: usize) -> io::Result<()> {
+    let mut output = OutputStream::new(writer);
+
+    write_stream_header(&mut output, level)?;
+
+    let mut stream_crc: u32 = 0;
+
+    let mut consumed = 0;
+    while consumed < input.len() {
+        let in_slice = &input[consumed..];
+
+        let (rle_buf, block_consumed) = rle::rle_one(in_slice, level);
+
+        let mut sum_buf = in_slice[..block_consumed].to_vec();
+        let block_crc = crc32::checksum(&mut sum_buf);
+
+        stream_crc = block_crc ^ ((stream_crc << 1) | (stream_crc >> 31));
+
+        let bwt_out = bwt::bwt(rle_buf);
+
+        write_block_header(&mut output, block_crc, bwt_out.ptr)?;
+        write_sym_map(&mut output, &bwt_out.has_byte)?;
+
+        let mtf_out = mtf::mtf_and_rle(bwt_out.bwt, bwt_out.has_byte);
+
+        huffman::encode(&mut output, mtf_out)?;
+
+        consumed += block_consumed;
+    }
+
+    write_stream_footer(&mut output, stream_crc)?;
+
+    output.close()
+}
+
 fn main() {
     let mut args = env::args().skip(1);
     let mut buffer = Vec::new();
@@ -89,35 +129,12 @@ fn main() {
     };
 
     let buffer = buffer;
-    let level = 1;
-
     let writer = io::BufWriter::new(fs::File::create(&format!("{}.banzai.bz2", path)).unwrap());
-    let mut output = OutputStream::new(writer);
-
-    write_stream_header(&mut output, level).unwrap();
-
-    // Build and write one block for the moment
-
-    let mut sum_buf = buffer.clone();
-    let sum = crc32::checksum(&mut sum_buf);
-
-    let (buffer, _) = rle::rle_one(&buffer, level);
-
-    let bwt_out = bwt::bwt(buffer);
-
-    write_block_header(&mut output, sum, bwt_out.ptr).unwrap();
-    write_sym_map(&mut output, &bwt_out.has_byte).unwrap();
-
-    let mtf_out = mtf::mtf_and_rle(bwt_out.bwt, bwt_out.has_byte);
-
-    huffman::encode(&mut output, mtf_out).unwrap();
-
-    output
-        .write_bytes(&[0x17, 0x72, 0x45, 0x38, 0x50, 0x90])
-        .unwrap();
-    output.write_bytes(&sum.to_be_bytes()).unwrap();
-
-    output.close().unwrap();
+    let level = 9;
+    if let Err(io_err) = encode(buffer, writer, level) {
+        eprintln!("Error writing compressed output: {}", io_err);
+        process::exit(2);
+    }
 }
 
 #[cfg(test)]

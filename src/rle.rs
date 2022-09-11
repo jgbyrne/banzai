@@ -25,7 +25,7 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
         return (vec![], 0);
     }
 
-    let max_len = 100_000 * level;
+    let max_len = 100_000 * level - 1;
     let mut out = BoundedBuffer::new(max_len);
 
     let mut floor = 0;
