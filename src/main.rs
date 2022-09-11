@@ -13,8 +13,6 @@ use std::io;
 use std::io::Read;
 use std::process;
 
-use crc::Crc;
-
 fn write_stream_header<W: io::Write>(output: &mut OutputStream<W>, level: usize) -> io::Result<()> {
     assert!(level >= 1 && level <= 9);
     let level_byte = char::from_digit(level as u32, 10).unwrap() as u8;
@@ -109,6 +107,8 @@ fn main() {
 
     write_block_header(&mut output, sum, bwt_out.ptr).unwrap();
     write_sym_map(&mut output, &bwt_out.has_byte).unwrap();
+
+    println!("{:?}", bwt_out.ptr);
 
     let mtf_out = mtf::mtf_and_rle(bwt_out.bwt, bwt_out.has_byte);
 

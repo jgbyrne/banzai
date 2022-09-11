@@ -80,6 +80,7 @@ impl Tree {
         (lengths, max_len)
     }
 
+    #[allow(unused)]
     fn str_node(&self, node: usize, depth: usize) -> String {
         let indent = " |".repeat(depth);
         if self.nodes[node].lchild.is_none() && self.nodes[node].rchild.is_none() {
@@ -103,6 +104,7 @@ impl Tree {
         }
     }
     
+    #[allow(unused)]
     fn print(&self) {
         println!("{}", self.str_node(0, 0));
     }
@@ -217,11 +219,6 @@ impl FrequencyQueue {
         };
         *self.item(final_idx) = (sym, priority);
         root
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.heap.len()
     }
 }
 
