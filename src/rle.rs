@@ -79,7 +79,7 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
                 }
             }
 
-            if i + 3 < n {
+            if !run && i + 3 < n {
                 let step = buf[i + 3];
                 if b == step {
                     // [i, i+1, i+2, i+3] are a run

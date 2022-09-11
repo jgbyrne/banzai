@@ -108,8 +108,6 @@ fn main() {
     write_block_header(&mut output, sum, bwt_out.ptr).unwrap();
     write_sym_map(&mut output, &bwt_out.has_byte).unwrap();
 
-    println!("{:?}", bwt_out.ptr);
-
     let mtf_out = mtf::mtf_and_rle(bwt_out.bwt, bwt_out.has_byte);
 
     huffman::encode(&mut output, mtf_out).unwrap();
