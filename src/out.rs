@@ -27,6 +27,7 @@ impl<W: io::Write> OutputStream<W> {
         io::Result::Ok(())
     }
 
+    #[inline]
     pub fn write_bits(&mut self, chunk: u8, num_bits: usize) -> io::Result<()> {
         assert!(self.strand_bits < 8);
         assert!(num_bits <= 8);
@@ -53,6 +54,7 @@ impl<W: io::Write> OutputStream<W> {
         io::Result::Ok(())
     }
 
+    #[inline]
     pub fn write_bits_u32(&mut self, chunk: u32, num_bits: usize) -> io::Result<()> {
         assert!(num_bits <= 32);
         let bytes = chunk.to_be_bytes();
@@ -73,10 +75,12 @@ impl<W: io::Write> OutputStream<W> {
         Ok(())
     }
 
+    #[inline]
     pub fn write_byte(&mut self, byte: u8) -> io::Result<()> {
         self.write_bits(byte, 8)
     }
 
+    #[inline]
     pub fn write_bytes(&mut self, bytes: &[u8]) -> io::Result<()> {
         let n_bytes = bytes.len();
         assert!(n_bytes > 0);
