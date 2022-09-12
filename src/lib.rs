@@ -65,11 +65,19 @@ fn write_stream_footer<W: io::Write>(output: &mut OutputStream<W>, crc: u32) -> 
     output.write_bytes(&crc.to_be_bytes())
 }
 
-pub fn encode<W, I>(input: I, writer: io::BufWriter<W>, level: usize) -> io::Result<()>
+/// bzip2 encode a buffer and write the output to a `BufWriter`
+///
+/// `level` must be in `1..=9` and describes the block size.
+/// That is: the block size is `level * 100_000`.
+/// The usual default is `9`.
+///
+/// Returns the number of input bytes encoded.
+pub fn encode<W, I>(input: I, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
 where
     I: convert::AsRef<[u8]>,
     W: io::Write,
 {
+    assert!(1 <= level && level <= 9);
     let input = input.as_ref();
     let mut output = OutputStream::new(writer);
 
@@ -101,8 +109,9 @@ where
     }
 
     write_stream_footer(&mut output, stream_crc)?;
+    output.close()?;
 
-    output.close()
+    Ok(consumed)
 }
 
 #[cfg(test)]
