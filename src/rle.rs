@@ -64,8 +64,8 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
             },
         }
 
-        /* Not enough bytes in buffer to make hop */
         if i + 2 >= n {
+            /* not enough bytes in buffer to make hop */
             if i + 1 < n {
                 out.push(buf[i + 1]);
                 i += 2
@@ -75,22 +75,17 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
             break;
         }
 
-        /* hop forward two bytes */
         let hop = buf[i + 2];
 
-        /* in any case we need to push buf[i + 1] */
         out.push(buf[i + 1]);
 
-        /* are (b = buf[i]) and (hop = buf[i + 2]) in a run together? */
+        // Check if buf[i] == buf[i + 1] == buf[i + 2]
         if b == hop && b == buf[i + 1] {
-            /* buf[i] == buf[i + 1] == buf[i + 2] */
-            /*  we may have a run on either side  */
-
             let mut run = false;
 
-            /* ensure run does not overlap with previous run */
+            // Ensure run does not overlap with previous run
+            // If so, check if [i-1, i, i+1, i+2] is a run
             if i > floor {
-                /* check if [i-1, i, i+1, i+2] is a run */
                 if b == buf[i - 1] {
                     /* have we got space to encode hop and runlength? */
                     if out.bound < 2 {
@@ -99,14 +94,12 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
                     }
                     out.push(hop);
                     i += 3;
-
                     run = true;
                 }
             }
 
-            /* if we have not yet found a run try the other end */
+            // Check if [i, i+1, i+2, i+3] is a run
             if !run && i + 3 < n {
-                /* check if [i, i+1, i+2, i+3] is a run */
                 let step = buf[i + 3];
                 if b == step {
                     /* have we got space to encode hop? */
@@ -123,13 +116,12 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
                     }
                     out.push(step);
                     i += 4;
-
                     run = true;
                 }
             }
 
             if run {
-                /* encode up to 251 additional repeated bytes */
+                // Encode up to 251 additional repeated bytes
                 let mut rep_count: u8 = 0;
                 while rep_count < 251 {
                     if let Some(r) = buf.get(i) {
@@ -141,24 +133,21 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
                     }
                     break;
                 }
-
-                /* encode repeat count */
                 out.push(rep_count);
 
-                /* don't check inside this run for next run */
+                /* don't look for next run inside this one */
                 floor = i;
 
                 if i >= n {
                     break;
+                } else {
+                    b = buf[i];
+                    continue;
                 }
-                b = buf[i];
-
-                /* don't conclude hop as usual */
-                continue;
             }
         }
 
-        /* we didn't encode a run: conclude hop */
+        // If we didn't encode a run, conclude hop
         i += 2;
         b = hop;
     }
