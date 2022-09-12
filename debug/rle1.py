@@ -1,3 +1,10 @@
+# =-=-= rle1.py =-=-=
+# An inefficient, but (I hope!) correct implementation of
+# the bzip2 RLE1 step, for the sake of debugging.
+
+# Unlike the real thing, does not concern itself with
+# limiting the number of input bytes it encodes.
+
 import sys
 import binascii
 

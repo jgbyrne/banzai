@@ -1,3 +1,6 @@
+// =-=-= lib.rs =-=-=
+// Core routines and API for banzai
+
 mod bwt;
 mod crc32;
 mod huffman;
@@ -30,6 +33,7 @@ fn write_block_header<W: io::Write>(
     output.write_bytes(&ptr.to_be_bytes()[slice_left..])
 }
 
+// All bzip2 blocks have a symbol map indicating which byte values are present in the BWT
 fn write_sym_map<W: io::Write>(output: &mut OutputStream<W>, has_byte: &[bool]) -> io::Result<()> {
     let mut sector_map: u16 = 0;
     let mut sectors: Vec<u16> = vec![];
@@ -58,6 +62,7 @@ fn write_sym_map<W: io::Write>(output: &mut OutputStream<W>, has_byte: &[bool]) 
 }
 
 fn write_stream_footer<W: io::Write>(output: &mut OutputStream<W>, crc: u32) -> io::Result<()> {
+    /* 1.77245385090 is the square-root of pi, apparently */
     output.write_bytes(&[0x17, 0x72, 0x45, 0x38, 0x50, 0x90])?;
     output.write_bytes(&crc.to_be_bytes())
 }
@@ -82,6 +87,7 @@ where
 
     let mut stream_crc: u32 = 0;
 
+    // Iteratively build blocks until we run out of input
     let mut consumed = 0;
     while consumed < input.len() {
         let in_slice = &input[consumed..];
@@ -91,6 +97,7 @@ where
         let mut sum_buf = in_slice[..block_consumed].to_vec();
         let block_crc = crc32::checksum(&mut sum_buf);
 
+        /* bzip2's idiosyncratic cumulative checksum */
         stream_crc = block_crc ^ ((stream_crc << 1) | (stream_crc >> 31));
 
         let bwt_out = bwt::bwt(rle_buf);

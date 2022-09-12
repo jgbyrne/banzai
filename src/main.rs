@@ -1,3 +1,8 @@
+// =-=-= main.rs =-=-=
+// Simple command line wrapper for `banzai::encode`
+// If I make this any more complicated, it'll probably
+// get its own crate...
+
 use banzai::encode;
 use std::env;
 use std::fs;
