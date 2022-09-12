@@ -195,7 +195,7 @@ fn induced_sort_fwd<W: Word>(data: &Data<W>, sa: &mut Array, buckets: &mut Bucke
         if i > 0 {
             i_sup = i - 1;
             i_sup2 = i - 2;
-            assert!(data[i_sup] >= data[i]);
+            debug_assert!(data[i_sup] >= data[i]);
             let push_idx = if i_sup2 < 0 || data[i_sup2] < data[i_sup] {
                 !i_sup
             } else {
@@ -233,7 +233,7 @@ fn induced_sort_bck<W: Word>(
         if i > 0 {
             i_sup = i - 1;
             i_sup2 = i - 2;
-            assert!(data[i_sup] <= data[i]);
+            debug_assert!(data[i_sup] <= data[i]);
             let push_idx = if i_sup2 < 0 || data[i_sup2] > data[i_sup] {
                 !i_sup
             } else {
@@ -591,7 +591,7 @@ pub fn bwt(mut input: Vec<u8>) -> Bwt {
         w_sub = w;
     }
 
-    assert!(lms_count < (buf_n >> 1));
+    assert!(lms_count <= (buf_n >> 1));
 
     if lms_count > 1 {
         // Induced Sort Fwd: {unsorted LMS-Suffixes} => {L-Type LMS-Prefixes}
@@ -658,7 +658,7 @@ pub fn bwt(mut input: Vec<u8>) -> Bwt {
         if i > 0 {
             i_sup = i - 1;
             i_sup2 = i - 2;
-            assert!(data[i_sup] >= data[i]);
+            debug_assert!(data[i_sup] >= data[i]);
             if (i as usize) < n {
                 sa[p] = !(data[i_sup] as Idx)
             } else {
@@ -691,7 +691,7 @@ pub fn bwt(mut input: Vec<u8>) -> Bwt {
         if i > 0 {
             i_sup = i - 1;
             i_sup2 = i - 2;
-            assert!(data[i_sup] <= data[i]);
+            debug_assert!(data[i_sup] <= data[i]);
             sa[p] = if (i as usize) < n {
                 data[i_sup] as Idx
             } else {

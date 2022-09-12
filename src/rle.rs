@@ -12,7 +12,7 @@ impl BoundedBuffer {
     }
 
     fn push(&mut self, byte: u8) {
-        assert!(self.bound > 0);
+        debug_assert!(self.bound > 0);
         self.buffer.push(byte);
         self.bound -= 1;
     }

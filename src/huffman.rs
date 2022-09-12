@@ -87,7 +87,7 @@ impl Tree {
                 stack.push((r, len + 1));
             } else {
                 /* if root has no children the tree wasn't finished */
-                assert!(cur.id != 0);
+                debug_assert!(cur.id != 0);
 
                 /* symbol is one less than leaf id, so (cur.id - 1) */
                 lengths[cur.id - 1] = len as u8;
