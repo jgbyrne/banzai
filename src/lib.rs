@@ -11,8 +11,8 @@ use std::convert;
 use std::io;
 
 fn write_stream_header<W: io::Write>(output: &mut OutputStream<W>, level: usize) -> io::Result<()> {
-    assert!(level >= 1 && level <= 9);
-    let level_byte = char::from_digit(level as u32, 10).unwrap() as u8;
+    assert!(1 <= level && level <= 9);
+    let level_byte = char::from_digit(level as u32, 10).expect("1 <= level <= 9") as u8;
     output.write_bytes(&[0x42, 0x5A, 0x68, level_byte])
 }
 
