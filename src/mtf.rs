@@ -1,13 +1,17 @@
 // =-=-= mtf.rs =-=-=
-// Move-to-front and RLE2 encoding
+// Move-to-front and RLE2 encoding for bzip2
 
+// Mtf struct contains information needed for huffman coding
 pub struct Mtf {
     pub output: Vec<u16>,
     pub num_syms: usize,
     pub freqs: Vec<usize>,
 }
 
+// Perform MTF and RLE2 passes in tandem
 pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
+    // We may not have all 256 byte values, so we
+    // sequentially name the bytes that are present
     let mut names: Vec<u8> = vec![0; 256];
     let mut num_names: u16 = 0;
     for (b, present) in has_byte.iter().enumerate() {
@@ -17,17 +21,23 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
         }
     }
 
-    assert!(num_names > 0);
-    assert!(num_names < 257);
+    assert!(0 < num_names && num_names < 257);
 
+    // Special symbol values
     let run_a = 0;
     let run_b = 1;
     let eob = num_names + 1;
 
+    // Frequency table is used for huffman coding
     let mut freqs: Vec<usize> = vec![0; 258];
-    let mut output: Vec<u16> = Vec::with_capacity(buf.len() / 3);
-    let mut recency = (0..num_names).map(|s| s as u8).collect::<Vec<u8>>();
 
+    // Output buffer length will never exceed (buf.len() + 1)
+    let mut output: Vec<u16> = Vec::with_capacity(buf.len() / 3);
+
+    // Recent names stack for MTF encoding
+    let mut recency = (0..num_names).map(|n| n as u8).collect::<Vec<u8>>();
+
+    // Encode a specified length run of zeroes with runa/runb
     let rle = |output: &mut Vec<u16>, freqs: &mut Vec<usize>, zero_count: usize| {
         let mut code = zero_count + 1;
         loop {
@@ -49,49 +59,60 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
         }
     };
 
+    // Main encoding loop
+
     let mut i = 0;
     let mut zero_count: usize = 0;
-    while let Some(b) = buf.get(i) {
-        let name = names[*b as usize];
+    while let Some(i_byte) = buf.get(i) {
+        let i_name = names[*i_byte as usize];
         let primary = recency[0];
 
-        if name == primary {
+        /* is `i_name` the most recent name? */
+        if i_name == primary {
             zero_count += 1;
         } else {
             if zero_count != 0 {
+                /* encode preceding zero-run */
                 rle(&mut output, &mut freqs, zero_count);
                 zero_count = 0;
             }
 
+            /* shuffle entries in recency list as far as `i_name` */
             let mut n0 = primary;
-            recency[0] = name;
-
             let r_iter = recency.iter_mut().enumerate().skip(1);
             for (r_i, pos) in r_iter {
                 let n1 = *pos;
                 *pos = n0;
                 n0 = n1;
 
-                if name == n0 {
+                if i_name == n0 {
+                    /* output symbol corresponding to index of `i_name` */
+                    /* symbols are one larger than corrresponding indices */
                     output.push((r_i + 1) as u16);
                     freqs[r_i + 1] += 1;
                     break;
                 }
             }
+
+            /* replace front of recency list with `i_name` */
+            recency[0] = i_name;
         }
 
         i += 1;
     }
 
     if zero_count != 0 {
+        /* encode trailing zero-run */
         rle(&mut output, &mut freqs, zero_count);
     }
 
+    // Blocks must always conclude with EOB
     output.push(eob);
     freqs[eob as usize] = 1;
 
     Mtf {
         output,
+        /* a symbol for every name except zero, plus runa, runb, and eob */
         num_syms: (num_names as usize) + 2,
         freqs,
     }
