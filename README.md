@@ -1,6 +1,10 @@
 ## banzai
 
-**banzai** is a pure Rust bzip2 encoder. It is currently pre-alpha software.
+**banzai** is a pure Rust bzip2 encoder. It is currently pre-alpha software, which means that it has undergone a very limited amount of testing and should not be relied upon to perform well and not eat your data. That's not to say, however, that I don't care about performance or reliability - bug reports are warmly appreciated! In the long term I would like to get this library to a state where it can be relied upon in production software.
+
+This library is linear-time in the size of the input, and has no usage of `unsafe`. When it is more mature these features should make it a good choice for safety-critical applications.
+
+This library does not (currently) include a decompressor. Paolo Barbolini's [bzip2-rs](https://crates.io/crates/bzip2-rs) offers a pure Rust bzip2 decompressor, though I have not used it myself and cannot vouch for its quality.
 
 ### Command Line Usage
 
