@@ -103,3 +103,31 @@ impl<W: io::Write> OutputStream<W> {
         io::Result::Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::out;
+    use std::io;
+
+    #[test]
+    fn bitstring() {
+        let mut out = Vec::new();
+        let writer = io::BufWriter::new(&mut out);
+        let mut output = out::OutputStream::new(writer);
+
+        /* 110 */
+        output.write_bits(6u8, 3).unwrap();
+        /* 11001000 */
+        output.write_byte(200u8).unwrap();
+        /* 0 */
+        output.write_bits(0u8, 1).unwrap();
+        /* 11001010 11111110 10111010 10111110 */
+        output.write_bytes(&[0xCA, 0xFE, 0xBA, 0xBE]).unwrap();
+        /* 0000001 */
+        output.write_bits(1u8, 7).unwrap();
+
+        output.close().unwrap();
+
+        assert!(out == [0xD9, 0x0C, 0xAF, 0xEB, 0xAB, 0xE0, 0x20]);
+    }
+}

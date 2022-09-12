@@ -740,3 +740,21 @@ pub fn bwt(mut input: Vec<u8>) -> Bwt {
         has_byte,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::bwt;
+
+    // Test case is Copyright 2015 Joe Tsai
+
+    #[test]
+    fn smoke_test() {
+        let test = "SIX.MIXED.PIXIES.SIFT.SIXTY.PIXIE.DUST.BOXES";
+
+        let bwt = bwt::bwt(String::from(test).into_bytes());
+        let bwt_str = String::from_utf8(bwt.bwt).unwrap();
+
+        assert!(bwt_str == "TEXYDST.E.IXIXIXXSSMPPS.B..E.S.EUSFXDIIOIIIT");
+        assert!(bwt.ptr == 29);
+    }
+}

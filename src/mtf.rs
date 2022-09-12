@@ -96,3 +96,41 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
         freqs,
     }
 }
+
+#[cfg(tests)]
+mod tests {
+    use crate::mtf;
+
+    //  Test case is Copyright 2015 Joe Tsai
+
+    // has_byte for testing
+    fn has_byte(buf: &Vec<u8>) -> Vec<bool> {
+        let mut has_byte = vec![false; 256];
+        for b in buf {
+            has_byte[*b as usize] = true;
+        }
+        has_byte
+    }
+
+    #[test]
+    fn smoke_test() {
+        let test: Vec<u8> = vec![
+            153, 45, 45, 38, 135, 179, 26, 154, 165, 170, 170, 170, 170, 18, 109, 240, 174, 150,
+            87, 164, 30, 30, 30, 30, 30, 30, 30, 148, 190, 10, 60, 13, 13, 13, 13, 13, 6, 81, 200,
+            13, 225, 32, 17, 43, 22, 179, 13, 13, 17, 236, 236, 236, 236, 236, 236, 236, 121, 211,
+            2, 211, 185, 54, 16, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            50, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 40,
+        ];
+        let has_byte = has_byte(&test);
+
+        let mtf = mtf::mtf_and_rle(test, has_byte);
+
+        let expected: Vec<u16> = vec![
+            27, 17, 0, 15, 25, 33, 15, 29, 31, 32, 0, 0, 17, 28, 40, 34, 33, 31, 34, 25, 1, 1, 34,
+            36, 23, 33, 25, 1, 0, 25, 34, 37, 4, 39, 32, 31, 34, 33, 26, 7, 0, 5, 40, 1, 1, 38, 40,
+            34, 2, 40, 40, 38, 38, 0, 1, 1, 0, 40, 2, 0, 1, 1, 0, 40, 41,
+        ];
+
+        assert!(mtf.output == expected);
+    }
+}
