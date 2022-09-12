@@ -1,3 +1,7 @@
+// =-=-= rle.rs =-=-=
+// Implement the first-pass Run-Length-Encoding for bzip2
+
+// A buffer that must not exceed its bound
 struct BoundedBuffer {
     bound: usize,
     buffer: Vec<u8>,
@@ -11,6 +15,7 @@ impl BoundedBuffer {
         }
     }
 
+    #[inline]
     fn push(&mut self, byte: u8) {
         debug_assert!(self.bound > 0);
         self.buffer.push(byte);
@@ -18,6 +23,7 @@ impl BoundedBuffer {
     }
 }
 
+// Apply first-pass RLE to as much of `buf` as can fit in a block
 pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
     let n = buf.len();
 
@@ -25,27 +31,40 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
         return (vec![], 0);
     }
 
+    /* One less than the block size maximum to allow for EOB later */
     let max_len = 100_000 * level - 1;
     let mut out = BoundedBuffer::new(max_len);
 
+    /* Do not look for runs beneath the floor */
     let mut floor = 0;
+
+    /* Current index and byte in `buf` */
     let mut i = 0;
     let mut b = buf[i];
+
+    // Encode from `buf` until we hit `out.bound` or the end of `buf`
+    // Approach: move through `buf` two-bytes at a time checking for runs
     loop {
+        /* invariant: buf[i] == b */
+
         match out.bound {
             0 => {
+                /* no more space left in block */
                 break;
             },
             1 => {
+                /* we shalln't be encoding any more runs */
                 out.push(b);
                 i += 1;
                 break;
             },
             _ => {
+                /* enough space in block to encode another run */
                 out.push(b);
             },
         }
 
+        /* Not enough bytes in buffer to make hop */
         if i + 2 >= n {
             if i + 1 < n {
                 out.push(buf[i + 1]);
@@ -56,51 +75,61 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
             break;
         }
 
+        /* hop forward two bytes */
         let hop = buf[i + 2];
+
+        /* in any case we need to push buf[i + 1] */
         out.push(buf[i + 1]);
 
-        if b != hop || b != buf[i + 1] {
-            i += 2;
-            b = hop;
-        } else {
+        /* are (b = buf[i]) and (hop = buf[i + 2]) in a run together? */
+        if b == hop && b == buf[i + 1] {
+            /* buf[i] == buf[i + 1] == buf[i + 2] */
+            /*  we may have a run on either side  */
+
             let mut run = false;
 
+            /* ensure run does not overlap with previous run */
             if i > floor {
+                /* check if [i-1, i, i+1, i+2] is a run */
                 if b == buf[i - 1] {
-                    // [i-1, i, i+1, i+2] are a run
+                    /* have we got space to encode hop and runlength? */
                     if out.bound < 2 {
                         i += 2;
                         break;
                     }
                     out.push(hop);
-
                     i += 3;
+
                     run = true;
                 }
             }
 
+            /* if we have not yet found a run try the other end */
             if !run && i + 3 < n {
+                /* check if [i, i+1, i+2, i+3] is a run */
                 let step = buf[i + 3];
                 if b == step {
-                    // [i, i+1, i+2, i+3] are a run
+                    /* have we got space to encode hop? */
                     if out.bound == 0 {
                         i += 2;
                         break;
                     }
                     out.push(hop);
 
+                    /* have we got space to encode step and runlength? */
                     if out.bound < 2 {
                         i += 3;
                         break;
                     }
                     out.push(step);
-
                     i += 4;
+
                     run = true;
                 }
             }
 
             if run {
+                /* encode up to 251 additional repeated bytes */
                 let mut rep_count: u8 = 0;
                 while rep_count < 251 {
                     if let Some(r) = buf.get(i) {
@@ -112,21 +141,29 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
                     }
                     break;
                 }
+
+                /* encode repeat count */
                 out.push(rep_count);
+
+                /* don't check inside this run for next run */
                 floor = i;
 
-                if i < n {
-                    b = buf[i]
-                } else {
+                if i >= n {
                     break;
                 }
-            } else {
-                i += 2;
-                b = hop;
+                b = buf[i];
+
+                /* don't conclude hop as usual */
+                continue;
             }
         }
+
+        /* we didn't encode a run: conclude hop */
+        i += 2;
+        b = hop;
     }
 
+    // Returns encoded buffer and number of input bytes encoded
     (out.buffer, i)
 }
 
