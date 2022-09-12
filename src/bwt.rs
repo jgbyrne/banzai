@@ -23,8 +23,8 @@ impl<'r, 'a: 'r> Array<'a> {
             let data_ptr = data.as_mut_ptr() as *mut u32;
             slice::from_raw_parts_mut(data_ptr, n)
         };
-        for p in 0..n {
-            sa[p] = 0;
+        for suf in sa.iter_mut() {
+            *suf = 0;
         }
         (Array(&mut sa[..n]), Data(data))
     }
@@ -406,7 +406,7 @@ fn decode_reduced<W: Word>(data: &Data<W>, sa: &mut Array, lms_count: usize) {
     }
 }
 
-fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, mut buckets: &mut Buckets<u32>) {
+fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, buckets: &mut Buckets<u32>) {
     let n: usize = data.len();
     assert!(n > 1);
 
@@ -436,7 +436,7 @@ fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, mut buckets: &mut Buc
             Type::S => {
                 if w > w_sub {
                     /* w_sub is LMS */
-                    tail_push(&mut sa, &mut buckets, *w_sub, i_sub);
+                    tail_push(&mut sa, buckets, *w_sub, i_sub);
                     lms_count += 1;
                     ty_sub = Type::L;
                 }
@@ -451,12 +451,12 @@ fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, mut buckets: &mut Buc
     /* If we don't have multiple LMS-Suffixes we can skip to Step 3 */
     if lms_count > 1 {
         // Induced Sort Fwd: {unsorted LMS-Suffixes} => {L-Type LMS-Prefixes}
-        induced_sort_fwd(&data, &mut sa, &mut buckets, true);
+        induced_sort_fwd(&data, &mut sa, buckets, true);
 
         // :: invariant :: Leftmost L-Type LMS-Prefixes are +tive, all else are zero
 
         // Induced Sort Bck: {L-Type LMS-Prefixes} => {S-Type LMS-Prefixes}
-        induced_sort_bck(&data, &mut sa, &mut buckets, true, false);
+        induced_sort_bck(&data, &mut sa, buckets, true, false);
 
         // :: invariant :: Leftmost S-Type LMS-Prefixes (and Idx 0) are -tive, all else are zero
 
@@ -489,7 +489,7 @@ fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, mut buckets: &mut Buc
         for p in (0..lms_count).rev() {
             let lms_idx = sa[p];
             sa[p] = 0;
-            tail_push(&mut sa, &mut buckets, data[lms_idx], lms_idx);
+            tail_push(&mut sa, buckets, data[lms_idx], lms_idx);
         }
     }
 
@@ -497,10 +497,10 @@ fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, mut buckets: &mut Buc
     // :: invariant :: LMS-Suffixes are all bucketed and sorted w.r.t each other
 
     // Induced Sort Fwd: {LMS-Suffixes} => {L-Type Suffixes}
-    induced_sort_fwd(&data, &mut sa, &mut buckets, false);
+    induced_sort_fwd(&data, &mut sa, buckets, false);
 
     // Induced Sort Bck: {L-Type Suffixes} => {S-Type Suffixes}
-    induced_sort_bck(&data, &mut sa, &mut buckets, false, true);
+    induced_sort_bck(&data, &mut sa, buckets, false, true);
 }
 
 pub struct Bwt {

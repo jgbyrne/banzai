@@ -1,6 +1,8 @@
 // =-=-= mtf.rs =-=-=
 // Move-to-front and RLE2 encoding for bzip2
 
+use std::mem;
+
 // Mtf struct contains information needed for huffman coding
 pub struct Mtf {
     pub output: Vec<u16>,
@@ -42,7 +44,7 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
         let mut code = zero_count + 1;
         loop {
             let bit = code & 1;
-            code = code >> 1;
+            code >>= 1;
             if code == 0 {
                 break;
             }
@@ -81,10 +83,7 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
             let mut n0 = primary;
             let r_iter = recency.iter_mut().enumerate().skip(1);
             for (r_i, pos) in r_iter {
-                let n1 = *pos;
-                *pos = n0;
-                n0 = n1;
-
+                mem::swap(pos, &mut n0);
                 if i_name == n0 {
                     /* output symbol corresponding to index of `i_name` */
                     /* symbols are one larger than corrresponding indices */

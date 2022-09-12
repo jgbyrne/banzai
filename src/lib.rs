@@ -30,10 +30,7 @@ fn write_block_header<W: io::Write>(
     output.write_bytes(&ptr.to_be_bytes()[slice_left..])
 }
 
-fn write_sym_map<W: io::Write>(
-    output: &mut OutputStream<W>,
-    has_byte: &Vec<bool>,
-) -> io::Result<()> {
+fn write_sym_map<W: io::Write>(output: &mut OutputStream<W>, has_byte: &[bool]) -> io::Result<()> {
     let mut sector_map: u16 = 0;
     let mut sectors: Vec<u16> = vec![];
 
@@ -52,7 +49,7 @@ fn write_sym_map<W: io::Write>(
             sectors.push(sector);
         }
     }
-    assert!(sectors.len() > 0);
+    assert!(!sectors.is_empty());
     output.write_bytes(&sector_map.to_be_bytes())?;
     for s in sectors {
         output.write_bytes(&s.to_be_bytes())?;

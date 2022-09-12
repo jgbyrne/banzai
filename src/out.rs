@@ -21,7 +21,7 @@ impl<W: io::Write> OutputStream<W> {
 
     pub fn close(mut self) -> io::Result<()> {
         if self.strand_bits != 0 {
-            self.writer.write(&[self.strand])?;
+            self.writer.write_all(&[self.strand])?;
         }
         self.writer.flush()?;
         io::Result::Ok(())
@@ -36,16 +36,16 @@ impl<W: io::Write> OutputStream<W> {
         if rptr < 8 {
             let shift = 8 - rptr;
             let s_chunk = chunk << shift;
-            self.strand = self.strand | s_chunk;
+            self.strand |= s_chunk;
             self.strand_bits = rptr;
         } else if rptr == 8 {
-            self.writer.write(&[self.strand | chunk])?;
+            self.writer.write_all(&[self.strand | chunk])?;
             self.strand = 0;
             self.strand_bits = 0;
         } else {
             let spill = rptr - 8;
             let s_chunk = chunk >> spill;
-            self.writer.write(&[self.strand | s_chunk])?;
+            self.writer.write_all(&[self.strand | s_chunk])?;
             let lshift = 8 - spill;
             self.strand = chunk << lshift;
             self.strand_bits = spill;
@@ -86,7 +86,7 @@ impl<W: io::Write> OutputStream<W> {
         debug_assert!(n_bytes > 0);
 
         if self.strand_bits == 0 {
-            self.writer.write(bytes)?;
+            self.writer.write_all(bytes)?;
         } else {
             let rshift = self.strand_bits;
             let lshift = 8 - self.strand_bits;
@@ -96,7 +96,7 @@ impl<W: io::Write> OutputStream<W> {
                 buf.push((b >> rshift) | strand);
                 strand = b << lshift;
             }
-            self.writer.write(&buf)?;
+            self.writer.write_all(&buf)?;
             self.strand = strand;
         }
 

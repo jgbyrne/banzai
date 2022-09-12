@@ -85,17 +85,15 @@ pub fn rle_one(buf: &[u8], level: usize) -> (Vec<u8>, usize) {
 
             // Ensure run does not overlap with previous run
             // If so, check if [i-1, i, i+1, i+2] is a run
-            if i > floor {
-                if b == buf[i - 1] {
-                    /* have we got space to encode hop and runlength? */
-                    if out.bound < 2 {
-                        i += 2;
-                        break;
-                    }
-                    out.push(hop);
-                    i += 3;
-                    run = true;
+            if i > floor && b == buf[i - 1] {
+                /* have we got space to encode hop and runlength? */
+                if out.bound < 2 {
+                    i += 2;
+                    break;
                 }
+                out.push(hop);
+                i += 3;
+                run = true;
             }
 
             // Check if [i, i+1, i+2, i+3] is a run

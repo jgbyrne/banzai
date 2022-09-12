@@ -1,8 +1,6 @@
 // =-=-= crc32.rs =-=-=
 // Perform the gzip style crc32 checksum
 
-use crc;
-
 // f.x. REVERSED[0b1001010] = 0b0101001
 const REVERSED: [u8; 256] = [
     0x00, 0x80, 0x40, 0xC0, 0x20, 0xA0, 0x60, 0xE0, 0x10, 0x90, 0x50, 0xD0, 0x30, 0xB0, 0x70, 0xF0,
@@ -37,7 +35,7 @@ pub fn checksum(buf: &mut Vec<u8>) -> u32 {
     }
 
     let crc = crc::Crc::<u32>::new(&crc::CRC_32_ISO_HDLC);
-    let chk = crc.checksum(&buf);
+    let chk = crc.checksum(buf);
 
     /* reverse bits of the checksum */
     let mut sum: u32 = 0;

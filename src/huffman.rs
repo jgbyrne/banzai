@@ -5,6 +5,7 @@
 
 use crate::mtf;
 use crate::out;
+use std::cmp::Ordering;
 use std::io;
 use std::ops::Add;
 
@@ -167,7 +168,7 @@ impl FrequencyQueue {
     //    until the maximum codeword length is not exceeded
     // :: Symbol s is recorded as (s + 1) in the queue to
     //    match the id of the corresponding `TreeNode`
-    fn new(num_syms: usize, freqs: &Vec<usize>, scaling: usize) -> Self {
+    fn new(num_syms: usize, freqs: &[usize], scaling: usize) -> Self {
         let mut queue = Self {
             heap: Vec::with_capacity(num_syms),
         };
@@ -182,12 +183,12 @@ impl FrequencyQueue {
     // :: This allows us to traverse the heap with binary shifts
 
     #[inline]
-    fn item<'s>(&'s mut self, idx: usize) -> &'s mut (u16, Priority) {
+    fn item(&mut self, idx: usize) -> &mut (u16, Priority) {
         &mut self.heap[idx - 1]
     }
 
     #[inline]
-    fn read_item<'s>(&'s self, idx: usize) -> &'s (u16, Priority) {
+    fn read_item(&self, idx: usize) -> &(u16, Priority) {
         &self.heap[idx - 1]
     }
 
@@ -225,7 +226,7 @@ impl FrequencyQueue {
         let (sym, priority) = match self.heap.pop() {
             None => panic!("Tried to extract() from empty heap"),
             Some(last) => {
-                if self.heap.len() == 0 {
+                if self.heap.is_empty() {
                     return last;
                 }
                 last
@@ -267,7 +268,7 @@ impl FrequencyQueue {
 }
 
 // Build a coding table from a list of symbol frequencies
-fn build_table_from_freqs(num_syms: usize, freqs: &Vec<usize>) -> Table {
+fn build_table_from_freqs(num_syms: usize, freqs: &[usize]) -> Table {
     let mut scaling = 1;
 
     /* Attempt iteratively, rescaling until CODEWORD_MAX_LEN is respected */
@@ -292,7 +293,7 @@ fn build_table_from_freqs(num_syms: usize, freqs: &Vec<usize>) -> Table {
         if max_len <= CODEWORD_MAX_LEN {
             break lengths;
         }
-        scaling = scaling << 1;
+        scaling <<= 1;
     }
 }
 
@@ -403,9 +404,9 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
 
         /* zero out frequency lists on each iteration */
         if it != 0 {
-            for t in 0..num_tables {
+            for table in tables.iter_mut() {
                 for s in 0..num_syms {
-                    table_freqs[t][s] = 0;
+                    table[s] = 0;
                 }
             }
         }
@@ -422,8 +423,8 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
             }
 
             /* zero out length tables */
-            for t in 0..num_tables {
-                table_costs[t] = 0;
+            for table_cost in table_costs.iter_mut() {
+                *table_cost = 0;
             }
 
             /* accumulate coding costs for each table */
@@ -461,7 +462,7 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
 
         /* rebuild tables with new frequency lists */
         for table in 0..num_tables {
-            tables[table] = build_table_from_freqs(num_syms, &mut table_freqs[table]);
+            tables[table] = build_table_from_freqs(num_syms, &table_freqs[table]);
         }
     }
 
@@ -523,19 +524,22 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
         for l in table.iter() {
             // Encode delta from previous length
             loop {
-                if *l == acc {
-                    /* 0 when length matches */
-                    output.write_bits(0, 1)?;
-                    break;
-                }
-                if acc < *l {
-                    /* 10 means increment */
-                    output.write_bits(2, 2)?;
-                    acc += 1;
-                } else if acc > *l {
-                    /* 11 means decrement */
-                    output.write_bits(3, 2)?;
-                    acc -= 1;
+                match (*l).cmp(&acc) {
+                    Ordering::Equal => {
+                        /* 0 when length matches */
+                        output.write_bits(0, 1)?;
+                        break;
+                    },
+                    Ordering::Greater => {
+                        /* 10 means increment */
+                        output.write_bits(2, 2)?;
+                        acc += 1;
+                    },
+                    Ordering::Less => {
+                        /* 11 means decrement */
+                        output.write_bits(3, 2)?;
+                        acc -= 1;
+                    },
                 }
             }
 
