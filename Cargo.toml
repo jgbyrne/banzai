@@ -1,16 +1,19 @@
 [package]
 name = "banzai"
-version = "0.2.2"
+version = "0.2.3"
 description = "A pure Rust bzip2 encoder"
 repository = "https://github.com/jgbyrne/banzai/"
+
 readme = "README.md"
 license = "MIT"
+
 edition = "2021"
 authors = ["Jack Byrne <jgbyrne9@gmail.com>"]
+
 keywords = ["bzip2"]
 categories = ["compression"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+exclude = ["/debug"]
 
 [dependencies]
 crc = "3.0"
