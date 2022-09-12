@@ -173,7 +173,6 @@ enum Type {
     L,
 }
 
-#[inline]
 fn induced_sort_fwd<W: Word>(data: &Data<W>, sa: &mut Array, buckets: &mut Buckets<W>, wipe: bool) {
     let n = sa.len();
     buckets.set_ptrs_to_bucket_heads();
@@ -213,7 +212,6 @@ fn induced_sort_fwd<W: Word>(data: &Data<W>, sa: &mut Array, buckets: &mut Bucke
     }
 }
 
-#[inline]
 fn induced_sort_bck<W: Word>(
     data: &Data<W>,
     sa: &mut Array,
