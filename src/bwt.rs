@@ -31,7 +31,7 @@ impl<'r, 'a: 'r> Array<'a> {
 }
 
 impl<'a> Index<usize> for Array<'a> {
-    type Output = i32;
+    type Output = Idx;
     fn index(&self, idx: usize) -> &Self::Output {
         &self.0[idx]
     }
