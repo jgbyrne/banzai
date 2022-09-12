@@ -3,6 +3,7 @@
 
 use crc;
 
+// f.x. REVERSED[0b1001010] = 0b0101001
 const REVERSED: [u8; 256] = [
     0x00, 0x80, 0x40, 0xC0, 0x20, 0xA0, 0x60, 0xE0, 0x10, 0x90, 0x50, 0xD0, 0x30, 0xB0, 0x70, 0xF0,
     0x08, 0x88, 0x48, 0xC8, 0x28, 0xA8, 0x68, 0xE8, 0x18, 0x98, 0x58, 0xD8, 0x38, 0xB8, 0x78, 0xF8,
@@ -22,7 +23,15 @@ const REVERSED: [u8; 256] = [
     0x0F, 0x8F, 0x4F, 0xCF, 0x2F, 0xAF, 0x6F, 0xEF, 0x1F, 0x9F, 0x5F, 0xDF, 0x3F, 0xBF, 0x7F, 0xFF,
 ];
 
+// The bzip2 checksum is intended to be compatible with the gzip checksum
+// However, gzip encodes the least-significant-bit first in the bitstring
+// To produce a gzip style checksum, we reverse the bits of every byte in
+// the input, then calculate the CRC-32 checksum, and finally reverse all
+// the bits of the checksum to produce the same value that would be found
+// in a gzip of the same input. (Yes, I aligned these lines deliberately)
+
 pub fn checksum(buf: &mut Vec<u8>) -> u32 {
+    /* reverse bits of each byte in `buf` */
     for c in buf.iter_mut() {
         *c = REVERSED[*c as usize];
     }
@@ -30,6 +39,7 @@ pub fn checksum(buf: &mut Vec<u8>) -> u32 {
     let crc = crc::Crc::<u32>::new(&crc::CRC_32_ISO_HDLC);
     let chk = crc.checksum(&buf);
 
+    /* reverse bits of the checksum */
     let mut sum: u32 = 0;
     for i in 0..32 {
         sum <<= 1;
