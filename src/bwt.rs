@@ -32,12 +32,14 @@ impl<'r, 'a: 'r> Array<'a> {
 
 impl<'a> Index<usize> for Array<'a> {
     type Output = Idx;
+    #[inline]
     fn index(&self, idx: usize) -> &Self::Output {
         &self.0[idx]
     }
 }
 
 impl<'a> IndexMut<usize> for Array<'a> {
+    #[inline]
     fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
         &mut self.0[idx]
     }
@@ -87,8 +89,8 @@ impl<'d, W> Index<Idx> for Data<'d, W> {
 
 struct Buckets<W: Word> {
     sigma: Vec<W>,
-    sizes: Vec<usize>,
-    bptrs: Vec<usize>,
+    sizes: Vec<u32>,
+    bptrs: Vec<u32>,
 }
 
 impl<'d, W: Word + 'd> Buckets<W> {
@@ -155,16 +157,18 @@ impl<'d, W: Word + 'd> Buckets<W> {
 #[inline]
 fn tail_push<W: Word>(sa: &mut Array, buckets: &mut Buckets<W>, w: W, i: Idx) {
     let bptr = &mut buckets.bptrs[w.as_usize()];
-    sa[*bptr] = i;
-    if *bptr > 0 {
-        *bptr -= 1
-    };
+    debug_assert!((*bptr as usize) < sa.len());
+    sa[*bptr as usize] = i;
+    // On the last insertion this will underflow zero
+    // This is hot code so allow wrapping instead of checking the case
+    *bptr = (*bptr).wrapping_sub(1);
 }
 
 #[inline]
 fn head_push<W: Word>(sa: &mut Array, buckets: &mut Buckets<W>, w: W, i: Idx) {
     let bptr = &mut buckets.bptrs[w.as_usize()];
-    sa[*bptr] = i;
+    debug_assert!((*bptr as usize) < sa.len());
+    sa[*bptr as usize] = i;
     *bptr += 1;
 }
 
@@ -247,7 +251,6 @@ fn induced_sort_bck<W: Word>(
     }
 }
 
-#[inline]
 fn encode_reduced<W: Word>(data: &Data<W>, sa: &mut Array) -> (usize, usize) {
     let n: usize = data.len();
 
@@ -359,7 +362,6 @@ fn encode_reduced<W: Word>(data: &Data<W>, sa: &mut Array) -> (usize, usize) {
     (lms_count, rword as usize + 1)
 }
 
-#[inline]
 fn decode_reduced<W: Word>(data: &Data<W>, sa: &mut Array, lms_count: usize) {
     let n: usize = data.len();
 
