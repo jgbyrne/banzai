@@ -389,9 +389,6 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
     /* new sum frequencies for each table */
     let mut table_freqs: Vec<Vec<usize>> = vec![];
 
-    /* table cost is number of bits required to encode the segment */
-    let mut table_costs: Vec<usize> = vec![0; num_syms];
-
     for _ in 0..num_tables {
         table_freqs.push(vec![0; num_syms]);
     }
@@ -422,25 +419,21 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
                 buf_right = input_size - 1;
             }
 
-            /* zero out length tables */
-            for table_cost in &mut table_costs {
-                *table_cost = 0;
-            }
-
             /* accumulate coding costs for each table */
-            for s in &input[buf_left..=buf_right] {
-                for t in 0..num_tables {
-                    table_costs[t] += tables[t][*s as usize] as usize;
-                }
-            }
 
-            /* best table has lowest cost */
             let mut best_table = 0;
             let mut best_table_cost = usize::MAX;
-            for t in 0..num_tables {
-                if table_costs[t] < best_table_cost {
+
+            for (t, table) in tables.iter().enumerate() {
+                let mut cost = 0;
+
+                for s in &input[buf_left..=buf_right] {
+                    cost += table[*s as usize] as usize;
+                }
+
+                if cost < best_table_cost {
                     best_table = t;
-                    best_table_cost = table_costs[t];
+                    best_table_cost = cost;
                 }
             }
 
