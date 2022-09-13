@@ -106,13 +106,13 @@ impl<'d, W> Index<usize> for Data<'d, W> {
     }
 }
 
-struct Buckets<W: Word> {
-    sigma: Vec<W>,
+struct Buckets {
+    sigma: Vec<u32>,
     sizes: Vec<u32>,
     bptrs: Vec<u32>,
 }
 
-impl<'d, W: Word + 'd> Buckets<W> {
+impl Buckets {
     fn set_ptrs_to_bucket_heads(&mut self) {
         let mut acc = 0;
         for w in self.sigma.iter() {
@@ -129,23 +129,20 @@ impl<'d, W: Word + 'd> Buckets<W> {
         }
     }
 
-    fn layout<I>(&mut self, data: I)
-    where
-        I: Iterator<Item = &'d W>,
-    {
-        for c in data {
-            self.sizes[c.as_usize()] += 1;
-            if self.sizes[c.as_usize()] == 1 {
-                self.sigma.push(*c)
+    fn layout<'d, W: Word + 'd>(&mut self, data: &'d Data<W>) {
+        for w in data.iter() {
+            self.sizes[w.as_usize()] += 1;
+        }
+
+        for (w, size) in self.sizes.iter().enumerate() {
+            if *size > 0 {
+                self.sigma.push(w as u32)
             }
         }
         self.sigma.sort_unstable();
     }
 
-    fn build<I>(data: I, max_sigma_size: usize) -> Self
-    where
-        I: Iterator<Item = &'d W>,
-    {
+    fn build<'d, W: Word + 'd>(data: &'d Data<W>, max_sigma_size: usize) -> Self {
         let mut buckets = Self {
             sigma: Vec::with_capacity(max_sigma_size),
             sizes: vec![0; max_sigma_size],
@@ -157,10 +154,7 @@ impl<'d, W: Word + 'd> Buckets<W> {
         buckets
     }
 
-    fn rebuild<I>(&mut self, data: I, max_sigma_size: usize)
-    where
-        I: Iterator<Item = &'d W>,
-    {
+    fn rebuild<'d, W: Word + 'd>(&mut self, data: &'d Data<W>, max_sigma_size: usize) {
         self.sigma.clear();
         self.sigma.reserve(max_sigma_size);
         self.sizes.clear();
@@ -174,7 +168,7 @@ impl<'d, W: Word + 'd> Buckets<W> {
 }
 
 #[inline]
-fn tail_push<W: Word>(sa: &mut Array, buckets: &mut Buckets<W>, w: W, i: Idx) {
+fn tail_push<W: Word>(sa: &mut Array, buckets: &mut Buckets, w: W, i: Idx) {
     let bptr = &mut buckets.bptrs[w.as_usize()];
     debug_assert!((*bptr as usize) < sa.len());
     sa[*bptr as usize] = i;
@@ -184,7 +178,7 @@ fn tail_push<W: Word>(sa: &mut Array, buckets: &mut Buckets<W>, w: W, i: Idx) {
 }
 
 #[inline]
-fn head_push<W: Word>(sa: &mut Array, buckets: &mut Buckets<W>, w: W, i: Idx) {
+fn head_push<W: Word>(sa: &mut Array, buckets: &mut Buckets, w: W, i: Idx) {
     let bptr = &mut buckets.bptrs[w.as_usize()];
     debug_assert!((*bptr as usize) < sa.len());
     sa[*bptr as usize] = i;
@@ -196,7 +190,7 @@ enum Type {
     L,
 }
 
-fn induced_sort_fwd<W: Word>(data: &Data<W>, sa: &mut Array, buckets: &mut Buckets<W>, wipe: bool) {
+fn induced_sort_fwd<W: Word>(data: &Data<W>, sa: &mut Array, buckets: &mut Buckets, wipe: bool) {
     let n = sa.len();
     buckets.set_ptrs_to_bucket_heads();
 
@@ -238,7 +232,7 @@ fn induced_sort_fwd<W: Word>(data: &Data<W>, sa: &mut Array, buckets: &mut Bucke
 fn induced_sort_bck<W: Word>(
     data: &Data<W>,
     sa: &mut Array,
-    buckets: &mut Buckets<W>,
+    buckets: &mut Buckets,
     wipe: bool,
     unflip: bool,
 ) {
@@ -419,7 +413,7 @@ fn decode_reduced<W: Word>(data: &Data<W>, sa: &mut Array, lms_count: usize) {
     }
 }
 
-fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, buckets: &mut Buckets<u32>) {
+fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, buckets: &mut Buckets) {
     let n: usize = data.len();
     assert!(n > 1);
 
@@ -480,7 +474,7 @@ fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, buckets: &mut Buckets
 
         if new_sigma_size != lms_count {
             let (rsa, rdata) = sa.split(lms_count);
-            buckets.rebuild(rdata.iter(), new_sigma_size);
+            buckets.rebuild(&rdata, new_sigma_size);
             sais(new_sigma_size, rdata, rsa, buckets);
         } else {
             /* there is a bijection between rwords and LMS-suffixes */
@@ -495,7 +489,7 @@ fn sais(sigma_size: usize, data: Data<u32>, mut sa: Array, buckets: &mut Buckets
 
         // :: invariant :: LMS-Suffixes are in sorted order in sa[0..lms_count]
 
-        buckets.rebuild(data.iter(), sigma_size);
+        buckets.rebuild(&data, sigma_size);
         buckets.set_ptrs_to_bucket_tails();
 
         // Space out LMS-Suffixes into buckets
@@ -569,7 +563,7 @@ pub fn bwt(mut input: Vec<u8>) -> Bwt {
     let mut array = vec![0; buf_n];
     let mut sa = Array::init(&mut array);
 
-    let mut buckets = Buckets::build(data.iter(), 256);
+    let mut buckets = Buckets::build(&data, 256);
 
     // =-=-= SA-IS Step 1: Induced Sort all LMS-Substrings in O(n) =-=-=
 
@@ -624,7 +618,7 @@ pub fn bwt(mut input: Vec<u8>) -> Bwt {
 
         if new_sigma_size != lms_count {
             let (rsa, rdata) = sa.split(lms_count);
-            let mut rbuckets = Buckets::build(rdata.iter(), new_sigma_size);
+            let mut rbuckets = Buckets::build(&rdata, new_sigma_size);
             sais(new_sigma_size, rdata, rsa, &mut rbuckets);
         } else {
             /* there is a bijection between rwords and LMS-suffixes */
