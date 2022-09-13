@@ -66,11 +66,16 @@ impl Word for u32 {
 // Vec newtype that allows Idx indexing
 struct Data<'d, W>(&'d mut [W]);
 
-impl<'d, W> Data<'d, W> {
+impl<'d, W> Data<'d, W>
+where
+    W: Word,
+{
+    #[inline]
     fn iter(&'d self) -> slice::Iter<'d, W> {
         self.0.iter()
     }
 
+    #[inline]
     fn len(&'d self) -> usize {
         self.0.len()
     }
@@ -78,12 +83,26 @@ impl<'d, W> Data<'d, W> {
     fn inner(self) -> &'d mut [W] {
         self.0
     }
+
+    #[inline]
+    fn substrings_equal(&'d self, idx_a: usize, idx_b: usize, len: usize) -> bool {
+        self.0[idx_a..(idx_a + len)] == self.0[idx_b..(idx_b + len)]
+    }
 }
 
 impl<'d, W> Index<Idx> for Data<'d, W> {
     type Output = W;
+    #[inline]
     fn index(&self, idx: Idx) -> &Self::Output {
         &self.0[idx as usize]
+    }
+}
+
+impl<'d, W> Index<usize> for Data<'d, W> {
+    type Output = W;
+    #[inline]
+    fn index(&self, idx: usize) -> &Self::Output {
+        &self.0[idx]
     }
 }
 
@@ -314,24 +333,18 @@ fn encode_reduced<W: Word>(data: &Data<W>, sa: &mut Array) -> (usize, usize) {
     // In-place map LMS-Substrings to Lexical Names at lookup indices
     let mut rword: u32 = 0;
 
-    let mut prv_lms = 0; /* use zero as null since Idx 0 is never LMS */
+    let mut prv_lms: usize = 0; /* use zero as null since Idx 0 is never LMS */
     let mut prv_lms_len: usize = 0;
     for i in 0..lms_count {
         let cur_lms = sa[i];
-        let cur_lms_len: usize = sa[lookup_index(lms_count, cur_lms)] as usize;
+        let lms_lookup = lookup_index(lms_count, cur_lms);
+
+        let cur_lms_len = sa[lms_lookup] as usize;
+        let cur_lms = cur_lms as usize;
 
         let eq = if prv_lms != 0 {
             if (prv_lms_len == cur_lms_len) && (prv_lms_len + cur_lms_len < n) {
-                let mut offset = 0;
-                loop {
-                    if offset as usize == prv_lms_len {
-                        break true;
-                    }
-                    if data[prv_lms + offset] != data[cur_lms + offset] {
-                        break false;
-                    }
-                    offset += 1;
-                }
+                data.substrings_equal(prv_lms, cur_lms, prv_lms_len)
             } else {
                 false
             }
@@ -347,7 +360,7 @@ fn encode_reduced<W: Word>(data: &Data<W>, sa: &mut Array) -> (usize, usize) {
             prv_lms_len = cur_lms_len;
         }
 
-        sa[lookup_index(lms_count, cur_lms)] = rword as Idx;
+        sa[lms_lookup] = rword as Idx;
     }
 
     // Compress lexical names to form reduced string at end of array
