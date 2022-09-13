@@ -30,17 +30,23 @@ impl<'r, 'a: 'r> Array<'a> {
     }
 }
 
-impl<'a> Index<usize> for Array<'a> {
-    type Output = Idx;
+impl<'a, S> Index<S> for Array<'a>
+where
+    S: slice::SliceIndex<[i32]>,
+{
+    type Output = S::Output;
     #[inline]
-    fn index(&self, idx: usize) -> &Self::Output {
+    fn index(&self, idx: S) -> &Self::Output {
         &self.0[idx]
     }
 }
 
-impl<'a> IndexMut<usize> for Array<'a> {
+impl<'a, S> IndexMut<S> for Array<'a>
+where
+    S: slice::SliceIndex<[i32]>,
+{
     #[inline]
-    fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
+    fn index_mut(&mut self, idx: S) -> &mut Self::Output {
         &mut self.0[idx]
     }
 }
@@ -280,9 +286,10 @@ fn encode_reduced<W: Word>(data: &Data<W>, sa: &mut Array) -> (usize, usize) {
             sa[lms_count] = !sa[p];
             lms_count += 1;
         }
-        if p >= lms_count {
-            sa[p] = Idx::MAX;
-        }
+    }
+
+    for suf in &mut sa[lms_count..n] {
+        *suf = Idx::MAX;
     }
 
     // Determine LMS-Substring lengths and write into lookup indices
