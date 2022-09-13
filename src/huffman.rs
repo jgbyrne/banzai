@@ -562,7 +562,6 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
     }
 
     // Huffman encode input buffer
-
     let mut sel = selectors[0];
     for (i, s) in input.iter().enumerate() {
         if i % 50 == 0 {
