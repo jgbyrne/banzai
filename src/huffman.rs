@@ -404,7 +404,7 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
 
         /* zero out frequency lists on each iteration */
         if it != 0 {
-            for table in tables.iter_mut() {
+            for table in &mut tables {
                 for s in 0..num_syms {
                     table[s] = 0;
                 }
@@ -423,7 +423,7 @@ pub fn encode<W: io::Write>(output: &mut out::OutputStream<W>, mtf: mtf::Mtf) ->
             }
 
             /* zero out length tables */
-            for table_cost in table_costs.iter_mut() {
+            for table_cost in &mut table_costs {
                 *table_cost = 0;
             }
 
