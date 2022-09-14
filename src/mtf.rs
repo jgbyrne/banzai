@@ -7,18 +7,18 @@ use std::mem;
 pub struct Mtf {
     pub output: Vec<u16>,
     pub num_syms: usize,
-    pub freqs: Vec<usize>,
+    pub freqs: [usize; 258],
 }
 
 // Perform MTF and RLE2 passes in tandem
 pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
     // We may not have all 256 byte values, so we
     // sequentially name the bytes that are present
-    let mut names: Vec<u8> = vec![0; 256];
+    let mut names = [0; 256];
     let mut num_names: u16 = 0;
     for (b, present) in has_byte.iter().enumerate() {
         if *present {
-            names[b] = num_names as u8;
+            names[b] = num_names;
             num_names += 1;
         }
     }
@@ -31,16 +31,19 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
     let eob = num_names + 1;
 
     // Frequency table is used for huffman coding
-    let mut freqs: Vec<usize> = vec![0; 258];
+    let mut freqs = [0; 258];
 
     // Output buffer length will never exceed (buf.len() + 1)
     let mut output: Vec<u16> = Vec::with_capacity(buf.len() / 3);
 
     // Recent names stack for MTF encoding
-    let mut recency = (0..num_names).map(|n| n as u8).collect::<Vec<u8>>();
+    let mut recency = [0; 256];
+    for n in 0..num_names {
+        recency[n as usize] = n;
+    }
 
     // Encode a specified length run of zeroes with runa/runb
-    let rle = |output: &mut Vec<u16>, freqs: &mut Vec<usize>, zero_count: usize| {
+    let rle = |output: &mut Vec<u16>, freqs: &mut [usize], zero_count: usize| {
         let mut code = zero_count + 1;
         loop {
             let bit = code & 1;
