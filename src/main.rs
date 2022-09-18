@@ -115,6 +115,7 @@ struct Invocation {
     output: Output,
     verbose: bool,
     keep_inf: bool,
+    level: Option<usize>,
 }
 
 impl Invocation {
@@ -124,6 +125,7 @@ impl Invocation {
             output: Output::Unspecified,
             verbose: false,
             keep_inf: false,
+            level: None,
         }
     }
 
@@ -142,10 +144,23 @@ impl Invocation {
         match self.output {
             Output::Unspecified => {
                 self.output = output;
+                return;
             },
-            _ => {
-                args_error_die("Only one output may be specified");
+            Output::StdOut => {
+                // tolerate specifying stdout multiple times
+                if let Output::StdOut = output {
+                    return;
+                }
             },
+            Output::File(_) => {},
+        }
+        args_error_die("Only one output may be specified");
+    }
+
+    fn level(&self) -> usize {
+        match self.level {
+            Some(lvl) => lvl,
+            None => 9,
         }
     }
 }
@@ -185,15 +200,31 @@ fn main() {
                     args_error_die(&format!("Unrecognised argument {}", a));
                 },
             },
-            ArgExpect::Any if a.starts_with('-') => {
-                match a.as_str() {
-                    "-" => {
-                        invocation.with_input(Input::StdIn);
-                    },
-                    _ => {
-                        // flegs
-                    },
-                }
+            ArgExpect::Any if a.starts_with('-') => match a.as_str() {
+                "-" => {
+                    invocation.with_input(Input::StdIn);
+                },
+                _ => {
+                    for c in a.chars().skip(1) {
+                        match c {
+                            'c' => {
+                                invocation.with_output(Output::StdOut);
+                            },
+                            'k' => {
+                                invocation.keep_inf = true;
+                            },
+                            'v' => {
+                                invocation.verbose = true;
+                            },
+                            n @ '0'..='9' => {
+                                invocation.level = Some(n.to_digit(10).unwrap() as usize);
+                            },
+                            _ => {
+                                args_error_die(format!("Flag '{}' is not valid", c));
+                            },
+                        }
+                    }
+                },
             },
             ArgExpect::Any | ArgExpect::NoArgs => {
                 invocation.with_input(Input::File(a));
@@ -243,9 +274,19 @@ fn main() {
 
     let writer = BufWriter::new(writer);
 
-    let level = 9;
-    if let Err(io_err) = encode(input, writer, level) {
-        eprintln!("[output error] {}", io_err);
+    if let Err(io_err) = encode(input, writer, invocation.level()) {
+        eprintln!("error writing compressed output: {}", io_err);
         process::exit(ERR_OUTPUT);
     }
+
+    if !invocation.keep_inf {
+        if let Input::File(inpath) = invocation.input {
+            if let Err(io_err) = fs::remove_file(inpath) {
+                eprintln!("error deleting input file: {}", io_err);
+                process::exit(ERR_OUTPUT);
+            }
+        }
+    }
+
+    process::exit(SUCCESS);
 }
