@@ -4,9 +4,10 @@
 // get its own crate...
 
 use banzai::encode;
+use std::convert;
 use std::env;
 use std::fs;
-use std::io::{self, BufWriter, Read};
+use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::process;
 
 const SUCCESS: i32 = 0;
@@ -23,8 +24,8 @@ fn fs_die(e: io::Error) -> ! {
 
 fn synopsis_die() -> ! {
     eprintln!("banzai is a libre bzip2 encoder");
-    eprintln!("     usage  : banzai file_to_encode");
-    eprintln!("     run 'banzai --help' for full options");
+    eprintln!("   usage : banzai file_to_encode");
+    eprintln!("   run 'banzai --help' for full options");
     eprintln!("{}", VERSION);
     process::exit(ERR_ARGS);
 }
@@ -35,7 +36,7 @@ const USAGE_MSG: &'static str = r#"
   options:
      --output <path.bz2>    specify output file
      --stdout    or   -c    output to standard out
-     --replace   or   -r    delete original file
+     --keep      or   -k    keep input file
 
      -1 to -9               set block size (100 to 900 kB)
 
@@ -47,9 +48,9 @@ const USAGE_MSG: &'static str = r#"
      --version              print version string
 
   notes:
-     To read input from stdin, specify '--' as the input
-     path. If neither of '--output' and '--stdout' are
-     specified, the default output is 'input_path.bz2'.
+     To read input from stdin, specify '-' in place of the
+     input path. If neither '--output' nor '--stdout' are
+     specified, the default output is '<input_path>.bz2'.
 "#;
 
 fn help_die() -> ! {
@@ -59,8 +60,7 @@ fn help_die() -> ! {
     process::exit(SUCCESS);
 }
 
-const INFO_MSG: &'static str =
-r#"banzai is a libre bzip2 encoder
+const INFO_MSG: &'static str = r#"banzai is a libre bzip2 encoder
 
 This program uses the SA-IS algorithm to compute
 the Burrows-Wheeler Transform, while codeword lengths
@@ -87,56 +87,161 @@ fn version_die() -> ! {
     process::exit(SUCCESS);
 }
 
+fn args_error_die<S: convert::AsRef<str>>(msg: S) -> ! {
+    eprintln!("{}", msg.as_ref());
+    process::exit(ERR_ARGS);
+}
+
 enum ArgExpect {
     Any,
+    NoArgs,
+    OutPath,
 }
 
 enum Input {
-    None,
+    Unspecified,
+    File(String),
     StdIn,
+}
 
+enum Output {
+    Unspecified,
+    File(String),
+    StdOut,
+}
+
+struct Invocation {
+    input: Input,
+    output: Output,
+    verbose: bool,
+    keep_inf: bool,
+}
+
+impl Invocation {
+    fn blank() -> Self {
+        Self {
+            input: Input::Unspecified,
+            output: Output::Unspecified,
+            verbose: false,
+            keep_inf: false,
+        }
+    }
+
+    fn with_input(&mut self, input: Input) {
+        match self.input {
+            Input::Unspecified => {
+                self.input = input;
+            },
+            _ => {
+                args_error_die("Only one input may be specified");
+            },
+        }
+    }
+
+    fn with_output(&mut self, output: Output) {
+        match self.output {
+            Output::Unspecified => {
+                self.output = output;
+            },
+            _ => {
+                args_error_die("Only one output may be specified");
+            },
+        }
+    }
 }
 
 fn main() {
     let args = env::args().skip(1);
 
-    let mut path = None;
+    if args.len() == 0 {
+        synopsis_die();
+    }
 
+    let mut invocation = Invocation::blank();
     let mut exp = ArgExpect::Any;
+
     for a in args {
         match exp {
-            ArgExpect::Any => {
+            ArgExpect::Any if a.starts_with("--") => match a.as_str() {
+                "--help" => help_die(),
+                "--version" => version_die(),
+                "--info" => info_die(),
+                "--verbose" => {
+                    invocation.verbose = true;
+                },
+                "--keep" => {
+                    invocation.keep_inf = true;
+                },
+                "--output" => {
+                    exp = ArgExpect::OutPath;
+                },
+                "--stdout" => {
+                    invocation.with_output(Output::StdOut);
+                },
+                "--" => {
+                    exp = ArgExpect::NoArgs;
+                },
+                _ => {
+                    args_error_die(&format!("Unrecognised argument {}", a));
+                },
+            },
+            ArgExpect::Any if a.starts_with('-') => {
+                match a.as_str() {
+                    "-" => {
+                        invocation.with_input(Input::StdIn);
+                    },
+                    _ => {
+                        // flegs
+                    },
+                }
+            },
+            ArgExpect::Any | ArgExpect::NoArgs => {
+                invocation.with_input(Input::File(a));
+            },
+            ArgExpect::OutPath => {
                 if a.starts_with('-') {
-                    match a.as_str() {
-                        "--help" => help_die(),
-                        "--version" => version_die(),
-                        "--info" => info_die(),
-
-                        _ => {
-                            eprintln!("This is another message");
-                            process::exit(ERR_ARGS);
-                        }
-                    }
+                    args_error_die("Argument '--output' requires a file path");
                 }
-                else {
-                    path = Some(a);
-                }
-            }
+                invocation.with_output(Output::File(a));
+                exp = ArgExpect::Any;
+            },
         }
     }
 
-    let path = path.unwrap_or_else(|| synopsis_die());
+    let mut reader: Box<dyn BufRead> = match &invocation.input {
+        Input::Unspecified => args_error_die("An input must be specified"),
+        Input::File(ref path) => {
+            let inf = fs::File::open(path).unwrap_or_else(|err| fs_die(err));
+            Box::new(BufReader::new(inf))
+        },
+        Input::StdIn => Box::new(BufReader::new(io::stdin())),
+    };
 
-    let mut file = fs::File::open(&path).unwrap_or_else(|err| fs_die(err));
+    let writer: Box<dyn Write> = match &invocation.output {
+        Output::Unspecified => {
+            if let Input::File(ref inpath) = &invocation.input {
+                let outf =
+                    fs::File::create(&format!("{}.bz2", inpath)).unwrap_or_else(|err| fs_die(err));
+                Box::new(outf)
+            } else {
+                Box::new(io::stdout())
+            }
+        },
+        Output::File(ref outpath) => {
+            let outf = fs::File::create(outpath).unwrap_or_else(|err| fs_die(err));
+            Box::new(outf)
+        },
+        Output::StdOut => Box::new(io::stdout()),
+    };
 
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)
+    reader
+        .read_to_end(&mut buffer)
         .unwrap_or_else(|err| fs_die(err));
 
     let input = buffer;
 
-    let outf = fs::File::create(&format!("{}.bz2", path)).unwrap_or_else(|err| fs_die(err));
-    let writer = BufWriter::new(outf);
+    let writer = BufWriter::new(writer);
 
     let level = 9;
     if let Err(io_err) = encode(input, writer, level) {
