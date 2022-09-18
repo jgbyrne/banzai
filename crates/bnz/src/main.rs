@@ -1,7 +1,5 @@
 // =-=-= main.rs =-=-=
-// Simple command line wrapper for `banzai::encode`
-// If I make this any more complicated, it'll probably
-// get its own crate...
+// Command-line interface to banzai
 
 use banzai::encode;
 use std::convert;
