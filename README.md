@@ -8,7 +8,7 @@ cargo install banzai
 
 This library is linear-time in the size of the input, and has no usage of `unsafe`. When it is more mature these features should make it a good choice for safety-critical applications.
 
-In general, **banzai** achieves similar compression ratios to the reference implementation. However, the runtime tends to be approximately twice as long. I believe this is because the runtime is dominated by the Burrows-Wheeler Transform. Since bzip2 uses a 'wrap-around' version of the BWT, **banzai** is obliged to compute the suffix array of the input concatenated with itself. I intend to investigate ways in which the redundancy inherent to inputs of this form can be exploited to optimise suffix array construction.
+In general, **banzai** achieves similar compression ratios to the reference implementation. However, as a general rule, the runtime tends to be approximately twice as long (notwithstanding the existance of certain highly repetitive inputs for which the reference implementation is substantially slower). I believe this is because the runtime is dominated by the Burrows-Wheeler Transform. Since bzip2 uses a 'wrap-around' version of the BWT, **banzai** is obliged to compute the suffix array of the input concatenated with itself. I intend to investigate ways in which the redundancy inherent to inputs of this form can be exploited to optimise suffix array construction.
 
 This library does not (currently) include a decompressor. Paolo Barbolini's [bzip2-rs](https://crates.io/crates/bzip2-rs) offers a pure Rust bzip2 decompressor, though I have not used it myself and cannot vouch for its quality.
 
