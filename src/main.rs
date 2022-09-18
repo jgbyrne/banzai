@@ -30,27 +30,39 @@ fn synopsis_die() -> ! {
 }
 
 const USAGE_MSG: &'static str = r#"
-     usage: banzai [args] file_to_encode
+  usage: banzai [options] <input_path>
 
-     -r --replace    delete original file
-     -c --stdout     output to standard out
-     -1 ... -9       set block size (100 to 900 kb)
-     -v --verbose    more extensive logging
-        --help       print this message
-        --info       print information about banzai
-        --version    print version string
+  options:
+     --output <path.bz2>    specify output file
+     --stdout    or   -c    output to standard out
+     --replace   or   -r    delete original file
+
+     -1 to -9               set block size (100 to 900 kB)
+
+     --verbose   or   -v    more extensive logging
+
+  commands:
+     --help                 print this message
+     --info                 print information about banzai
+     --version              print version string
+
+  notes:
+     To read input from stdin, specify '--' as the input
+     path. If neither of '--output' and '--stdout' are
+     specified, the default output is 'input_path.bz2'.
 "#;
 
 fn help_die() -> ! {
     eprintln!("banzai is a libre bzip2 encoder");
     eprintln!("{}", USAGE_MSG);
+    eprintln!("{}", VERSION);
     process::exit(SUCCESS);
 }
 
 const INFO_MSG: &'static str =
 r#"banzai is a libre bzip2 encoder
 
-This program uses the SA-IS algorithm to determine
+This program uses the SA-IS algorithm to compute
 the Burrows-Wheeler Transform, while codeword lengths
 for Huffman Encoding are chosen by iterative refinement.
 
@@ -79,6 +91,12 @@ enum ArgExpect {
     Any,
 }
 
+enum Input {
+    None,
+    StdIn,
+
+}
+
 fn main() {
     let args = env::args().skip(1);
 
@@ -93,6 +111,7 @@ fn main() {
                         "--help" => help_die(),
                         "--version" => version_die(),
                         "--info" => info_die(),
+
                         _ => {
                             eprintln!("This is another message");
                             process::exit(ERR_ARGS);
