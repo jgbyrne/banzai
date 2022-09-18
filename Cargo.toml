@@ -15,5 +15,11 @@ categories = ["compression"]
 
 exclude = ["/debug"]
 
+[lib]
+path = "crates/lib/lib.rs"
+
+[workspace]
+members = ["crates/bnz"]
+
 [dependencies]
 crc = "3.0"

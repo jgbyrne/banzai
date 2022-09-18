@@ -25,14 +25,14 @@ fn fs_die(e: io::Error) -> ! {
 
 fn synopsis_die() -> ! {
     eprintln!("{}", TAGLINE);
-    eprintln!("   run 'banzai --help' for a full list of options");
-    eprintln!("   run 'banzai --info' for information about this software");
+    eprintln!("   run 'bnz --help' for a full list of options");
+    eprintln!("   run 'bnz --info' for information about this software");
     eprintln!("{}", VERSION);
     process::exit(ERR_ARGS);
 }
 
 const USAGE_MSG: &'static str = r#"
-  usage: banzai [options] <input_path>
+  usage: bnz [options] <input_path>
 
   options:
      --output <path.bz2>    specify output file
