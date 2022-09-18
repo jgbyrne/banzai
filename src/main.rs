@@ -15,6 +15,7 @@ const ERR_ARGS: i32 = 1;
 const ERR_FILESYSTEM: i32 = 2;
 const ERR_OUTPUT: i32 = 3;
 
+const TAGLINE: &'static str = "banzai is a libre bzip2 encoder";
 const VERSION: &'static str = concat!("version alpha ", env!("CARGO_PKG_VERSION"));
 
 fn fs_die(e: io::Error) -> ! {
@@ -23,8 +24,9 @@ fn fs_die(e: io::Error) -> ! {
 }
 
 fn synopsis_die() -> ! {
-    eprintln!("banzai is a libre bzip2 encoder");
-    eprintln!("   run 'banzai --help' for full options");
+    eprintln!("{}", TAGLINE);
+    eprintln!("   run 'banzai --help' for a full list of options");
+    eprintln!("   run 'banzai --info' for information about this software");
     eprintln!("{}", VERSION);
     process::exit(ERR_ARGS);
 }
@@ -49,18 +51,17 @@ const USAGE_MSG: &'static str = r#"
   notes:
      To read input from stdin, specify '-' in place of the
      input path. If neither '--output' nor '--stdout' are
-     specified, the default output is '<input_path>.bz2'.
+     specified, the file '<input_path>.bz2' is written.
 "#;
 
 fn help_die() -> ! {
-    eprintln!("banzai is a libre bzip2 encoder");
+    eprintln!("{}", TAGLINE);
     eprintln!("{}", USAGE_MSG);
     eprintln!("{}", VERSION);
     process::exit(SUCCESS);
 }
 
-const INFO_MSG: &'static str = r#"banzai is a libre bzip2 encoder
-
+const INFO_MSG: &'static str = r#"
 This program uses the SA-IS algorithm to compute
 the Burrows-Wheeler Transform, while codeword lengths
 for Huffman Encoding are chosen by iterative refinement.
@@ -76,6 +77,7 @@ and released for public use under the MIT license.
 "#;
 
 fn info_die() -> ! {
+    eprintln!("{}", TAGLINE);
     eprintln!("{}", INFO_MSG);
     eprintln!("{}", VERSION);
     process::exit(SUCCESS);
