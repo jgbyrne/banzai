@@ -24,7 +24,6 @@ fn fs_die(e: io::Error) -> ! {
 
 fn synopsis_die() -> ! {
     eprintln!("banzai is a libre bzip2 encoder");
-    eprintln!("   usage : banzai file_to_encode");
     eprintln!("   run 'banzai --help' for full options");
     eprintln!("{}", VERSION);
     process::exit(ERR_ARGS);
