@@ -90,8 +90,10 @@ where
     let mut consumed = 0;
     let mut raw = vec![];
     loop {
-        //let in_slice = &input[consumed..];
         let rle_out = rle::rle_one(&mut input, raw, level);
+        if rle_out.consumed == 0 {
+            break;
+        }
 
         /* bzip2's idiosyncratic cumulative checksum */
         stream_crc = rle_out.chk ^ ((stream_crc << 1) | (stream_crc >> 31));
