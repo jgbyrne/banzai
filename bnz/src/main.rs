@@ -36,6 +36,7 @@ const USAGE_MSG: &'static str = r#"
      --output <path.bz2>    specify output file
      --stdout    or   -c    output to standard out
      --keep      or   -k    keep input file
+     --remove    or   -r    remove input file
 
      -1 to -9               set block size (default -9)
      --fast                 alias for -1
@@ -52,6 +53,9 @@ const USAGE_MSG: &'static str = r#"
      To read input from stdin, specify '-' in place of the
      input path. If neither '--output' nor '--stdout' are
      specified, the file '<input_path>.bz2' is written.
+
+     By default, bnz keeps the input file if the output
+     is manually specified, but removes it otherwise.
 "#;
 
 fn help_die() -> ! {
@@ -115,7 +119,7 @@ struct Invocation {
     input: Input,
     output: Output,
     verbose: bool,
-    keep_inf: bool,
+    keep_inf: Option<bool>,
     level: Option<usize>,
 }
 
@@ -125,7 +129,7 @@ impl Invocation {
             input: Input::Unspecified,
             output: Output::Unspecified,
             verbose: false,
-            keep_inf: false,
+            keep_inf: None,
             level: None,
         }
     }
@@ -186,13 +190,16 @@ fn main() {
                     invocation.verbose = true;
                 },
                 "--keep" => {
-                    invocation.keep_inf = true;
+                    invocation.keep_inf = Some(true);
+                },
+                "--remove" => {
+                    invocation.keep_inf = Some(false);
                 },
                 "--fast" => {
-                    level = 1;
+                    invocation.level = Some(1);
                 },
                 "--best" => {
-                    level = 9;
+                    invocation.level = Some(9);
                 },
                 "--output" => {
                     exp = ArgExpect::OutPath;
@@ -218,7 +225,10 @@ fn main() {
                                 invocation.with_output(Output::StdOut);
                             },
                             'k' => {
-                                invocation.keep_inf = true;
+                                invocation.keep_inf = Some(true);
+                            },
+                            'r' => {
+                                invocation.keep_inf = Some(false);
                             },
                             'v' => {
                                 invocation.verbose = true;
@@ -279,7 +289,17 @@ fn main() {
         process::exit(ERR_OUTPUT);
     }
 
-    if !invocation.keep_inf {
+    let keep_inf = match invocation.keep_inf {
+        None => {
+            match invocation.output {
+                Output::Unspecified => false,
+                _ => true,
+            }
+        },
+        Some(keep_inf) => keep_inf,
+    };
+
+    if !keep_inf {
         if let Input::File(inpath) = invocation.input {
             if let Err(io_err) = fs::remove_file(inpath) {
                 eprintln!("error deleting input file: {}", io_err);
