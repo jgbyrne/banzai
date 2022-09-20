@@ -66,7 +66,7 @@ fn write_stream_footer<W: io::Write>(output: &mut OutputStream<W>, crc: u32) -> 
     output.write_bytes(&crc.to_be_bytes())
 }
 
-/// bzip2 encode a buffer and write the output to a `BufWriter`
+/// bzip2 encode an input stream and write the output to a `BufWriter`
 ///
 /// `level` must be in `1..=9` and describes the block size.
 /// That is: the block size is `level * 100_000`.

@@ -1,10 +1,8 @@
 ## banzai
 
-```
-cargo install banzai
-```
+**banzai** is a pure Rust bzip2 encoder. It is currently alpha software, which means that it has undergone a limited amount of testing and should not be relied upon to perform well and not eat your data. That's not to say, however, that I don't care about performance or reliability - bug reports are warmly appreciated! In the long term I would like to get this library to a state where it can be relied upon in production software.
 
-**banzai** is a pure Rust bzip2 encoder. It is currently pre-alpha software, which means that it has undergone a very limited amount of testing and should not be relied upon to perform well and not eat your data. That's not to say, however, that I don't care about performance or reliability - bug reports are warmly appreciated! In the long term I would like to get this library to a state where it can be relied upon in production software.
+To use **banzai** as a command-line tool with a similar interface to `bzip(1)`, install **bnz** through cargo.
 
 This library is linear-time in the size of the input, and has no usage of `unsafe`. When it is more mature these features should make it a good choice for safety-critical applications.
 
@@ -12,18 +10,12 @@ In general, **banzai** achieves similar compression ratios to the reference impl
 
 This library does not (currently) include a decompressor. Paolo Barbolini's [bzip2-rs](https://crates.io/crates/bzip2-rs) offers a pure Rust bzip2 decompressor, though I have not used it myself and cannot vouch for its quality.
 
-### Command Line Usage
-
-    banzai <file_to_encode>
-
-Compresses and writes to `file_to_encode.bz2`.
-
-### Library Usage
+### Interface
 
 ```rust
-fn encode(input: I, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
+fn encode(reader: I, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
 where
-    I: convert::AsRef<[u8]>,
+    I: io::BufRead,
     W: io::Write
 ```
 
