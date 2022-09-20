@@ -1,14 +1,21 @@
 [package]
 name = "bnz"
-description = "banzai - a libre bzip2 encoder (cli)"
 version = "0.3.0"
+description = "bnz: a command-line interface to the banzai libre bzip2 encoder"
+repository = "https://github.com/jgbyrne/banzai/tree/master/bnz/"
+
+readme = "README.md"
+license = "MIT"
+
 edition = "2021"
+authors = ["Jack Byrne <jgbyrne9@gmail.com>"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-banzai = { path = "../" }
+keywords = ["bzip2"]
+categories = ["command-line-utilities", "compression"]
 
 [[bin]]
 path = "src/main.rs"
 name = "bnz"
+
+[dependencies]
+banzai = { path = "../" }
