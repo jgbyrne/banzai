@@ -57,6 +57,9 @@ impl<'i, I: io::BufRead> InputStream<'i, I> {
     #[inline]
     fn margin_call(&mut self, raw: &mut Vec<u8>, i: usize, n: &mut usize) -> usize {
         let d = *n - i;
+
+        // If we have less than 256 bytes of margin, this iteration could hit the
+        // end of the raw buffer. So we need to fill it up if we can.
         if d < 256 {
             if self.seen_eof {
                 d

@@ -13,9 +13,9 @@ This library does not (currently) include a decompressor. Paolo Barbolini's [bzi
 ### Interface
 
 ```rust
-fn encode(reader: I, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
+fn encode(reader: R, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
 where
-    I: io::BufRead,
+    R: io::BufRead,
     W: io::Write
 ```
 

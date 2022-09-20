@@ -73,9 +73,9 @@ fn write_stream_footer<W: io::Write>(output: &mut OutputStream<W>, crc: u32) -> 
 /// The usual default is `9`.
 ///
 /// Returns the number of input bytes encoded.
-pub fn encode<W, I>(mut input: I, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
+pub fn encode<R, W>(mut reader: R, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
 where
-    I: io::BufRead,
+    R: io::BufRead,
     W: io::Write,
 {
     assert!(1 <= level && level <= 9);
@@ -85,11 +85,13 @@ where
 
     let mut stream_crc: u32 = 0;
 
+    // Data that has been read from the reader but not yet encoded
+    let mut raw = vec![];
+
     // Iteratively build blocks until we run out of input
     let mut consumed = 0;
-    let mut raw = vec![];
     loop {
-        let rle_out = rle::rle_one(&mut input, raw, level);
+        let rle_out = rle::rle_one(&mut reader, raw, level);
         if rle_out.consumed == 0 {
             break;
         }
@@ -108,6 +110,7 @@ where
 
         consumed += rle_out.consumed;
 
+        /* if raw is None, then we reached EOF */
         raw = match rle_out.raw {
             None => break,
             Some(raw) => raw,
