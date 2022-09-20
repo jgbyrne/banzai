@@ -91,7 +91,7 @@ where
     // Iteratively build blocks until we run out of input
     let mut consumed = 0;
     loop {
-        let rle_out = rle::rle_one(&mut reader, raw, level);
+        let rle_out = rle::rle_one(&mut reader, raw, level)?;
         if rle_out.consumed == 0 {
             break;
         }

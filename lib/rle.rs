@@ -27,45 +27,45 @@ impl BoundedBuffer {
     }
 }
 
-struct InputStream<'i, I: io::BufRead> {
-    reader: &'i mut I,
+struct InputStream<'i, R: io::BufRead> {
+    reader: &'i mut R,
     seen_eof: bool,
 }
 
-impl<'i, I: io::BufRead> InputStream<'i, I> {
-    fn new(reader: &'i mut I) -> Self {
+impl<'i, R: io::BufRead> InputStream<'i, R> {
+    fn new(reader: &'i mut R) -> Self {
         Self {
             reader,
             seen_eof: false,
         }
     }
 
-    fn init(&mut self, raw: &mut Vec<u8>) -> usize {
-        let buf = self.reader.fill_buf().unwrap();
+    fn init(&mut self, raw: &mut Vec<u8>) -> Result<usize, io::Error> {
+        let buf = self.reader.fill_buf()?;
 
         if buf.is_empty() {
             self.seen_eof = true;
-            return raw.len();
+            return Ok(raw.len());
         }
 
         raw.extend_from_slice(&buf);
         let buf_len = buf.len();
         self.reader.consume(buf_len);
-        raw.len()
+        Ok(raw.len())
     }
 
     #[inline]
-    fn margin_call(&mut self, raw: &mut Vec<u8>, i: usize, n: &mut usize) -> usize {
+    fn margin_call(&mut self, raw: &mut Vec<u8>, i: usize, n: &mut usize) -> Result<usize, io::Error> {
         let d = *n - i;
 
         // If we have less than 256 bytes of margin, this iteration could hit the
         // end of the raw buffer. So we need to fill it up if we can.
         if d < 256 {
             if self.seen_eof {
-                d
+                Ok(d)
             } else {
                 while *n < (i + 256) {
-                    let buf = self.reader.fill_buf().unwrap();
+                    let buf = self.reader.fill_buf()?;
                     let l = buf.len();
                     if l == 0 {
                         self.seen_eof = true;
@@ -76,10 +76,12 @@ impl<'i, I: io::BufRead> InputStream<'i, I> {
                         *n += l;
                     }
                 }
-                *n - i
+                Ok(*n - i)
             }
         } else {
-            256
+            // Here we use 256 to mean 'more margin than can
+            // possibly be required by this iteration'
+            Ok(256)
         }
     }
 }
@@ -92,18 +94,18 @@ pub struct Rle {
 }
 
 // Apply first-pass RLE to as much of `reader` as can fit in a block
-pub fn rle_one<I: io::BufRead>(reader: &mut I, mut raw: Vec<u8>, level: usize) -> Rle {
+pub fn rle_one<R: io::BufRead>(reader: &mut R, mut raw: Vec<u8>, level: usize) -> Result<Rle, io::Error> {
     let mut stream = InputStream::new(reader);
 
-    let mut n = stream.init(&mut raw);
+    let mut n = stream.init(&mut raw)?;
 
     if n == 0 {
-        return Rle {
+        return Ok(Rle {
             output: vec![],
             chk: 0,
             raw: None,
             consumed: 0,
-        };
+        });
     }
 
     /* One less than the block size maximum to allow for EOB later */
@@ -139,7 +141,7 @@ pub fn rle_one<I: io::BufRead>(reader: &mut I, mut raw: Vec<u8>, level: usize) -
             },
         }
 
-        match stream.margin_call(&mut raw, i, &mut n) {
+        match stream.margin_call(&mut raw, i, &mut n)? {
             0 => unreachable!(),
             1 => {
                 i += 1;
@@ -233,12 +235,12 @@ pub fn rle_one<I: io::BufRead>(reader: &mut I, mut raw: Vec<u8>, level: usize) -
     let block_crc = crc32::checksum(&mut raw);
 
     // Returns encoded buffer and number of input bytes encoded
-    Rle {
+    Ok(Rle {
         output: out.buffer,
         chk: block_crc,
         raw: remainder,
         consumed: i,
-    }
+    })
 }
 
 #[cfg(test)]

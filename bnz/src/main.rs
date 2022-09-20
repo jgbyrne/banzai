@@ -267,7 +267,7 @@ fn main() {
     let writer = BufWriter::new(writer);
 
     if let Err(io_err) = encode(reader, writer, invocation.level()) {
-        eprintln!("error writing compressed output: {}", io_err);
+        eprintln!("error during compression: {}", io_err);
         process::exit(ERR_OUTPUT);
     }
 
