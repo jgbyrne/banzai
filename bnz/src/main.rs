@@ -238,7 +238,7 @@ fn main() {
         }
     }
 
-    let mut reader: Box<dyn BufRead> = match &invocation.input {
+    let reader: Box<dyn BufRead> = match &invocation.input {
         Input::Unspecified => args_error_die("An input must be specified"),
         Input::File(ref path) => {
             let inf = fs::File::open(path).unwrap_or_else(|err| fs_die(err));
@@ -264,16 +264,9 @@ fn main() {
         Output::StdOut => Box::new(io::stdout()),
     };
 
-    let mut buffer = Vec::new();
-    reader
-        .read_to_end(&mut buffer)
-        .unwrap_or_else(|err| fs_die(err));
-
-    let input = buffer;
-
     let writer = BufWriter::new(writer);
 
-    if let Err(io_err) = encode(input, writer, invocation.level()) {
+    if let Err(io_err) = encode(reader, writer, invocation.level()) {
         eprintln!("error writing compressed output: {}", io_err);
         process::exit(ERR_OUTPUT);
     }

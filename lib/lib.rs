@@ -74,13 +74,12 @@ fn write_stream_footer<W: io::Write>(output: &mut OutputStream<W>, crc: u32) -> 
 /// The usual default is `9`.
 ///
 /// Returns the number of input bytes encoded.
-pub fn encode<W, I>(input: I, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
+pub fn encode<W, I>(mut input: I, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
 where
-    I: convert::AsRef<[u8]>,
+    I: io::BufRead,
     W: io::Write,
 {
     assert!(1 <= level && level <= 9);
-    let input = input.as_ref();
     let mut output = OutputStream::new(writer);
 
     write_stream_header(&mut output, level)?;
@@ -89,27 +88,29 @@ where
 
     // Iteratively build blocks until we run out of input
     let mut consumed = 0;
-    while consumed < input.len() {
-        let in_slice = &input[consumed..];
-
-        let (rle_buf, block_consumed) = rle::rle_one(in_slice, level);
-
-        let mut sum_buf = in_slice[..block_consumed].to_vec();
-        let block_crc = crc32::checksum(&mut sum_buf);
+    let mut raw = vec![];
+    loop {
+        //let in_slice = &input[consumed..];
+        let rle_out = rle::rle_one(&mut input, raw, level);
 
         /* bzip2's idiosyncratic cumulative checksum */
-        stream_crc = block_crc ^ ((stream_crc << 1) | (stream_crc >> 31));
+        stream_crc = rle_out.chk ^ ((stream_crc << 1) | (stream_crc >> 31));
 
-        let bwt_out = bwt::bwt(rle_buf);
+        let bwt_out = bwt::bwt(rle_out.output);
 
-        write_block_header(&mut output, block_crc, bwt_out.ptr)?;
+        write_block_header(&mut output, rle_out.chk, bwt_out.ptr)?;
         write_sym_map(&mut output, &bwt_out.has_byte)?;
 
         let mtf_out = mtf::mtf_and_rle(bwt_out.bwt, bwt_out.has_byte);
 
         huffman::encode(&mut output, mtf_out)?;
 
-        consumed += block_consumed;
+        consumed += rle_out.consumed;
+
+        raw = match rle_out.raw {
+            None => break,
+            Some(raw) => raw,
+        };
     }
 
     write_stream_footer(&mut output, stream_crc)?;
