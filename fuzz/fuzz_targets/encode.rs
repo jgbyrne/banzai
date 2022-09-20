@@ -6,5 +6,5 @@ extern crate banzai;
 
 fuzz_target!(|data: &[u8]| {
     let reader = io::BufReader::new(data);
-    banzai::encode(reader, io::BufWriter::new(io::sink()), 9).unwrap();
+    banzai::encode(reader, io::BufWriter::new(io::sink()), 1).unwrap();
 });

@@ -10,7 +10,7 @@ checksum = "f44124848854b941eafdb34f05b3bcf59472f643c7e151eba7c2b69daa469ed5"
 
 [[package]]
 name = "banzai"
-version = "0.2.6"
+version = "0.3.0"
 dependencies = [
  "crc",
 ]
