@@ -37,7 +37,9 @@ const USAGE_MSG: &'static str = r#"
      --stdout    or   -c    output to standard out
      --keep      or   -k    keep input file
 
-     -1 to -9               set block size (100 to 900 kB)
+     -1 to -9               set block size (default -9)
+     --fast                 alias for -1
+     --best                 alias for -9
 
      --verbose   or   -v    more extensive logging
 
@@ -186,6 +188,12 @@ fn main() {
                 "--keep" => {
                     invocation.keep_inf = true;
                 },
+                "--fast" => {
+                    level = 1;
+                },
+                "--best" => {
+                    level = 9;
+                },
                 "--output" => {
                     exp = ArgExpect::OutPath;
                 },
@@ -215,7 +223,7 @@ fn main() {
                             'v' => {
                                 invocation.verbose = true;
                             },
-                            n @ '0'..='9' => {
+                            n @ '1'..='9' => {
                                 invocation.level = Some(n.to_digit(10).unwrap() as usize);
                             },
                             _ => {
