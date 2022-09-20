@@ -10,7 +10,6 @@ mod rle;
 mod out;
 use out::OutputStream;
 
-use std::convert;
 use std::io;
 
 fn write_stream_header<W: io::Write>(output: &mut OutputStream<W>, level: usize) -> io::Result<()> {
