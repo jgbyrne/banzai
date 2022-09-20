@@ -1,6 +1,6 @@
 [package]
 name = "bnz"
-version = "0.3.0"
+version = "0.3.1"
 description = "bnz: a command-line interface to the banzai libre bzip2 encoder"
 repository = "https://github.com/jgbyrne/banzai/tree/master/bnz/"
 
@@ -18,4 +18,4 @@ path = "src/main.rs"
 name = "bnz"
 
 [dependencies]
-banzai = { version = "0.3.0", path = "../" }
+banzai = { version = "0.3.1", path = "../" }

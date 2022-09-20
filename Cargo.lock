@@ -4,14 +4,14 @@ version = 3
 
 [[package]]
 name = "banzai"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "crc",
 ]
 
 [[package]]
 name = "bnz"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "banzai",
 ]
