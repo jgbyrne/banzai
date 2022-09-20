@@ -10,7 +10,10 @@ mod rle;
 mod out;
 use out::OutputStream;
 
+use std::convert;
+use std::fs;
 use std::io;
+use std::path;
 
 fn write_stream_header<W: io::Write>(output: &mut OutputStream<W>, level: usize) -> io::Result<()> {
     assert!(1 <= level && level <= 9);
@@ -70,9 +73,14 @@ fn write_stream_footer<W: io::Write>(output: &mut OutputStream<W>, crc: u32) -> 
 ///
 /// `level` must be in `1..=9` and describes the block size.
 /// That is: the block size is `level * 100_000`.
-/// The usual default is `9`.
+///
+/// In principle, a smaller block size trades away some
+/// compression performance for a shorter runtime. In practice,
+/// the speedup is not very large, and you almost certainly
+/// want level = 9.
 ///
 /// Returns the number of input bytes encoded.
+
 pub fn encode<R, W>(mut reader: R, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
 where
     R: io::BufRead,
@@ -121,4 +129,25 @@ where
     output.close()?;
 
     Ok(consumed)
+}
+
+/// bzip2 encode a file and write the output to another file
+///
+/// Returns the number of bytes encoded.
+///
+/// Use encode() instead of this if you want fine-grained
+/// control over block-size or I/O streams.
+
+pub fn encode_file<I, O>(in_path: I, out_path: O) -> io::Result<usize>
+where
+    I: convert::AsRef<path::Path>,
+    O: convert::AsRef<path::Path>,
+{
+    let inf = fs::File::open(in_path.as_ref())?;
+    let outf = fs::File::create(out_path.as_ref())?;
+
+    let in_reader = io::BufReader::new(inf);
+    let out_writer = io::BufWriter::new(outf);
+
+    encode(in_reader, out_writer, 9)
 }

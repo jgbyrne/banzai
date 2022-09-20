@@ -55,7 +55,12 @@ impl<'i, R: io::BufRead> InputStream<'i, R> {
     }
 
     #[inline]
-    fn margin_call(&mut self, raw: &mut Vec<u8>, i: usize, n: &mut usize) -> Result<usize, io::Error> {
+    fn margin_call(
+        &mut self,
+        raw: &mut Vec<u8>,
+        i: usize,
+        n: &mut usize,
+    ) -> Result<usize, io::Error> {
         let d = *n - i;
 
         // If we have less than 256 bytes of margin, this iteration could hit the
@@ -94,7 +99,11 @@ pub struct Rle {
 }
 
 // Apply first-pass RLE to as much of `reader` as can fit in a block
-pub fn rle_one<R: io::BufRead>(reader: &mut R, mut raw: Vec<u8>, level: usize) -> Result<Rle, io::Error> {
+pub fn rle_one<R: io::BufRead>(
+    reader: &mut R,
+    mut raw: Vec<u8>,
+    level: usize,
+) -> Result<Rle, io::Error> {
     let mut stream = InputStream::new(reader);
 
     let mut n = stream.init(&mut raw)?;
