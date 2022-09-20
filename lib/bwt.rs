@@ -759,16 +759,14 @@ pub fn bwt(mut input: Vec<u8>) -> Bwt {
 mod tests {
     use crate::bwt;
 
-    // Test case is Copyright 2015 Joe Tsai
-
     #[test]
     fn smoke_test() {
-        let test = "SIX.MIXED.PIXIES.SIFT.SIXTY.PIXIE.DUST.BOXES";
+        let test = "He served fire and smoke; these denizens of the fields served vegetation, weather, frost, and sun.";
 
         let bwt = bwt::bwt(String::from(test).into_bytes());
         let bwt_str = String::from_utf8(bwt.bwt).unwrap();
 
-        assert!(bwt_str == "TEXYDST.E.IXIXIXXSSMPPS.B..E.S.EUSFXDIIOIIIT");
-        assert!(bwt.ptr == 29);
+        assert!(bwt_str == "e,eed,sesddf;d,trnne.  etenne lrshHkwvvvidzhsshgo   etttftfnoesouaaee mireifeende   o se a asrr  i");
+        assert!(bwt.ptr == 20);
     }
 }

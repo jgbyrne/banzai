@@ -1,6 +1,6 @@
 [package]
 name = "banzai"
-version = "0.2.6"
+version = "0.3.0"
 description = "A pure Rust bzip2 encoder"
 repository = "https://github.com/jgbyrne/banzai/"
 
@@ -14,6 +14,12 @@ keywords = ["bzip2"]
 categories = ["compression"]
 
 exclude = ["/debug"]
+
+[lib]
+path = "lib/lib.rs"
+
+[workspace]
+members = ["bnz"]
 
 [dependencies]
 crc = "3.0"

@@ -11,7 +11,9 @@ mod out;
 use out::OutputStream;
 
 use std::convert;
+use std::fs;
 use std::io;
+use std::path;
 
 fn write_stream_header<W: io::Write>(output: &mut OutputStream<W>, level: usize) -> io::Result<()> {
     assert!(1 <= level && level <= 9);
@@ -67,53 +69,85 @@ fn write_stream_footer<W: io::Write>(output: &mut OutputStream<W>, crc: u32) -> 
     output.write_bytes(&crc.to_be_bytes())
 }
 
-/// bzip2 encode a buffer and write the output to a `BufWriter`
+/// bzip2 encode an input stream and write the output to a `BufWriter`
 ///
 /// `level` must be in `1..=9` and describes the block size.
 /// That is: the block size is `level * 100_000`.
-/// The usual default is `9`.
+///
+/// In principle, a smaller block size trades away some
+/// compression performance for a shorter runtime. In practice,
+/// the speedup is not very large, and you almost certainly
+/// want level = 9.
 ///
 /// Returns the number of input bytes encoded.
-pub fn encode<W, I>(input: I, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
+
+pub fn encode<R, W>(mut reader: R, writer: io::BufWriter<W>, level: usize) -> io::Result<usize>
 where
-    I: convert::AsRef<[u8]>,
+    R: io::BufRead,
     W: io::Write,
 {
     assert!(1 <= level && level <= 9);
-    let input = input.as_ref();
     let mut output = OutputStream::new(writer);
 
     write_stream_header(&mut output, level)?;
 
     let mut stream_crc: u32 = 0;
 
+    // Data that has been read from the reader but not yet encoded
+    let mut raw = vec![];
+
     // Iteratively build blocks until we run out of input
     let mut consumed = 0;
-    while consumed < input.len() {
-        let in_slice = &input[consumed..];
-
-        let (rle_buf, block_consumed) = rle::rle_one(in_slice, level);
-
-        let mut sum_buf = in_slice[..block_consumed].to_vec();
-        let block_crc = crc32::checksum(&mut sum_buf);
+    loop {
+        let rle_out = rle::rle_one(&mut reader, raw, level)?;
+        if rle_out.consumed == 0 {
+            break;
+        }
 
         /* bzip2's idiosyncratic cumulative checksum */
-        stream_crc = block_crc ^ ((stream_crc << 1) | (stream_crc >> 31));
+        stream_crc = rle_out.chk ^ ((stream_crc << 1) | (stream_crc >> 31));
 
-        let bwt_out = bwt::bwt(rle_buf);
+        let bwt_out = bwt::bwt(rle_out.output);
 
-        write_block_header(&mut output, block_crc, bwt_out.ptr)?;
+        write_block_header(&mut output, rle_out.chk, bwt_out.ptr)?;
         write_sym_map(&mut output, &bwt_out.has_byte)?;
 
         let mtf_out = mtf::mtf_and_rle(bwt_out.bwt, bwt_out.has_byte);
 
         huffman::encode(&mut output, mtf_out)?;
 
-        consumed += block_consumed;
+        consumed += rle_out.consumed;
+
+        /* if raw is None, then we reached EOF */
+        raw = match rle_out.raw {
+            None => break,
+            Some(raw) => raw,
+        };
     }
 
     write_stream_footer(&mut output, stream_crc)?;
     output.close()?;
 
     Ok(consumed)
+}
+
+/// bzip2 encode a file and write the output to another file
+///
+/// Returns the number of bytes encoded.
+///
+/// Use encode() instead of this if you want fine-grained
+/// control over block-size or I/O streams.
+
+pub fn encode_file<I, O>(in_path: I, out_path: O) -> io::Result<usize>
+where
+    I: convert::AsRef<path::Path>,
+    O: convert::AsRef<path::Path>,
+{
+    let inf = fs::File::open(in_path.as_ref())?;
+    let outf = fs::File::create(out_path.as_ref())?;
+
+    let in_reader = io::BufReader::new(inf);
+    let out_writer = io::BufWriter::new(outf);
+
+    encode(in_reader, out_writer, 9)
 }
