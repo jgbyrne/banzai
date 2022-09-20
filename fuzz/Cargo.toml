@@ -10,6 +10,8 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+bzip2 = "0.4"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dependencies.banzai]
 path = ".."
@@ -21,5 +23,11 @@ members = ["."]
 [[bin]]
 name = "encode"
 path = "fuzz_targets/encode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "round_trip"
+path = "fuzz_targets/round_trip.rs"
 test = false
 doc = false
