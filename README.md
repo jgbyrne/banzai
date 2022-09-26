@@ -1,10 +1,8 @@
 ## banzai
 
-**banzai** is a bzip2 encoder, written entirely in safe Rust. It is currently alpha software, which means that it is not battle-hardened and is not guaranteed to perform well and not eat your data. That's not to say, however, that I don't care about performance or reliability - bug reports are warmly appreciated! In the long term I would like to get this library to a state where it can be relied upon in production software.
+**banzai** is a bzip2 encoder with linear-time complexity, written entirely in safe Rust. It is currently alpha software, which means that it is not battle-hardened and is not guaranteed to perform well and not eat your data. That's not to say, however, that I don't care about performance or reliability - bug reports are warmly appreciated! In the long term I would like to get this library to a state where it can be relied upon in production software.
 
 To use **banzai** as a command-line tool with a similar interface to `bzip(1)`, install **bnz** through cargo.
-
-This library is linear-time in the size of the input, and has no usage of `unsafe`. When it is more mature these features should make it a good choice for safety-critical applications.
 
 **banzai** currently uses a near-identical method of choosing Huffman trees to the reference implementation and therefore achieves very similar compression ratios. Compared to the reference implementation, **banzai** has worse average runtime but better worst-case runtime. This is because of the different algorithms used to compute the Burrows-Wheeler Transform. The choice of algorithm used in **banzai** is *SA-IS*, which computes a [suffix array](https://en.wikipedia.org/wiki/Suffix_array) in linear time. Since bzip2 uses a 'wrap-around' version of the BWT, we are obliged to compute the suffix array of the input concatenated with itself. I intend to investigate ways in which the redundancy inherent to inputs of this form can be exploited to optimise suffix array construction.
 
