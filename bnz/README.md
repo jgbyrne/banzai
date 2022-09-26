@@ -1,6 +1,6 @@
 ## bnz
 
-**bnz** is the command-line interface to **banzai**. The interface is deliberately similar to `bzip2(1)`.
+**bnz** is a command-line utility for compressing files into the bzip2 format. It is implemented as a thin wrapper around **banzai**, a bzip2 encoding library written entirely in safe Rust. The interface is deliberately similar to `bzip2(1)`.
 
 You can install **bnz** with cargo: `cargo install bnz`
 
