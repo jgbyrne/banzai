@@ -1,13 +1,13 @@
 [package]
 name = "bnz"
-version = "0.3.1"
+version = "0.3.2"
 description = "bnz: a command-line interface to the banzai libre bzip2 encoder"
 repository = "https://github.com/jgbyrne/banzai/tree/master/bnz/"
 
 readme = "README.md"
 license = "MIT"
 
-edition = "2021"
+edition = "2024"
 authors = ["Jack Byrne <jgbyrne9@gmail.com>"]
 
 keywords = ["bzip2"]
@@ -18,4 +18,4 @@ path = "src/main.rs"
 name = "bnz"
 
 [dependencies]
-banzai = { version = "0.3.1", path = "../" }
+banzai = { version = "0.3.2", path = "../" }

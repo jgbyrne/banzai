@@ -258,7 +258,7 @@ fn main() {
 
     let reader: Box<dyn BufRead> = match &invocation.input {
         Input::Unspecified => args_error_die("An input must be specified"),
-        Input::File(ref path) => {
+        Input::File(path) => {
             let inf = fs::File::open(path).unwrap_or_else(|err| fs_die(err));
             Box::new(BufReader::new(inf))
         },
@@ -267,7 +267,7 @@ fn main() {
 
     let writer: Box<dyn Write> = match &invocation.output {
         Output::Unspecified => {
-            if let Input::File(ref inpath) = &invocation.input {
+            if let Input::File(inpath) = &invocation.input {
                 let outf =
                     fs::File::create(&format!("{}.bz2", inpath)).unwrap_or_else(|err| fs_die(err));
                 Box::new(outf)
@@ -275,7 +275,7 @@ fn main() {
                 Box::new(io::stdout())
             }
         },
-        Output::File(ref outpath) => {
+        Output::File(outpath) => {
             let outf = fs::File::create(outpath).unwrap_or_else(|err| fs_die(err));
             Box::new(outf)
         },

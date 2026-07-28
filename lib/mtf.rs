@@ -120,7 +120,7 @@ pub fn mtf_and_rle(buf: Vec<u8>, has_byte: Vec<bool>) -> Mtf {
     }
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use crate::mtf;
 
